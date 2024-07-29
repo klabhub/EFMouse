@@ -8,7 +8,7 @@ Run the notebooks [montage_4x1.mlx](https://github.com/klabhub/EFMouse/blob/main
 Ruben Sanchez-Romero and Bart Krekelberg<br /> 
 Center for Molecular and Behavioral Neuroscience (CMBN) Rutgers Newark<br/> 
 March 2024<br/> 
-For questions email ruben.saro.at.rutgers.edu
+
 
 If you use EFMouse in your research, please cite: Sanchez-Romero R., Akyuz, S., & Krekelberg, B. (2024). EFMouse: a Matlab toolbox to model electric fields in the mouse brain. bioRxiv. https[]()://doi.org/10.1101/2024.07.25.605227 
 
