@@ -4,6 +4,7 @@ the mouse.
 
 For details see [Sanchez-Romero et al. (2024). bioRxiv.](https://doi.org/10.1101/2024.07.25.605227) <br /> 
 Run the notebooks [montage_4x1.mlx](https://github.com/klabhub/EFMouse/blob/main/montage_4x1.mlx) and [montage_1x1.mlx](https://github.com/klabhub/EFMouse/blob/main/montage_1x1.mlx) to reproduce results in Sanchez-Romero et al.
+(You can visualize (not interact with) the notebooks directly from the repo clicking on the corresponding html files.)
 
 Developed by Ruben Sanchez-Romero and Bart Krekelberg<br /> 
 Center for Molecular and Behavioral Neuroscience (CMBN) Rutgers Newark<br/> 
