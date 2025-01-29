@@ -11,6 +11,8 @@ classdef EFMouse < handle
     % Function starting with 'analyze' link field measurements with  mouse
     % anatomy.
     %
+    % Use the Editor tab/Go To button to navigate the class functions.
+    %
     % Ruben Sanchez-Romero and Bart Krekelberg
     % Center for Molecular and Behavioral Neuroscience (CMBN)
     % Rutgers Newark
@@ -1681,13 +1683,14 @@ classdef EFMouse < handle
             area_efMag = sqrt(sum(area_ef.^2,2));
             max_limit = prctile(area_efMag,pv.percentile_max); 
             cut_off = (pv.threshold/100) * max_limit;
-            % now use the cutoff to threshold the complement_ef.
-            % this is all the cortical area outside the roi
+            % now use the cutoff to threshold the reference_ef.
             reference_efMag = sqrt(sum(reference_ef.^2,2));
             num_nodes_p = sum(reference_efMag > cut_off);
             % compute focality
             reference_num_nodes = numel(reference_efMag);
-            F = num_nodes_p/reference_num_nodes;
+            % January 2025. We modify the measure so the measure
+            % goes from 0 to 1, lower to higher focality
+            F = 1 - num_nodes_p/reference_num_nodes;
             % include focality and number of total nodes for reference
             F = [F,reference_num_nodes];
         end
