@@ -1286,7 +1286,8 @@ classdef EFMouse < handle
             complement_node_idx = setdiff(gray_node_idx,roi_node_idx);
             complement_ef= ef(complement_node_idx,:);
             F = EFMouse.focality(roi_ef,complement_ef,threshold = pv.foc_threshold, percentile_max = pv.foc_percentile_max);
-            fprintf('Relative focality = %.4f%% of %d reference nodes (eMag > %.2f%% of the ROI max (%.2fth percentile))\n',F(1)*100,F(2),pv.foc_threshold,pv.foc_percentile_max);
+            fprintf('[Relative focality ranges from 0 to 1]\n');
+            fprintf('Relative focality = %.4f, with %d reference nodes (cutoff: eMag > %.2f%% of the target area max (%.2fth percentile))\n',F(1),F(2),pv.foc_threshold,pv.foc_percentile_max);
             % Compute homogeneity
             H = EFMouse.homogeneity(roi_ef);
             fprintf('[Homogeneity ranges from 0 to 1]\n');
@@ -1414,7 +1415,8 @@ classdef EFMouse < handle
             %ref_mask(ref_ids) = 1;
 
             F = EFMouse.focality(area_ef,ref_ef,threshold = pv.foc_threshold,percentile_max = pv.foc_percentile_max);
-            fprintf('Relative focality = %.4f%% of %d reference voxels (eMag > %.2f%% of the area max (%.2fth percentile))\n',F(1)*100,F(2),pv.foc_threshold,pv.foc_percentile_max);
+            fprintf('[Relative focality ranges from 0 to 1]\n');
+            fprintf('Relative focality = %.4f, with %d reference voxels (cutoff: eMag > %.2f%% of the area max (%.2fth percentile))\n',F(1),F(2),pv.foc_threshold,pv.foc_percentile_max);
 
             % Compute homogeneity
             H = EFMouse.homogeneity(area_ef);
