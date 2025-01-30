@@ -3,22 +3,22 @@ The [EFMouse.m](https://github.com/klabhub/EFMouse/blob/main/EFMouse.m) Matlab c
 the mouse.
 
 For details see [Sanchez-Romero et al. (2024). bioRxiv.](https://doi.org/10.1101/2024.07.25.605227) <br /> 
-Run the Matlab notebooks [montage_4x1.mlx](https://github.com/klabhub/EFMouse/blob/main/montage_4x1.mlx) and [montage_1x1.mlx](https://github.com/klabhub/EFMouse/blob/main/montage_1x1.mlx) to reproduce results in Sanchez-Romero et al.<br />
-You can visualize (not interact with) the notebooks directly here [montage_4x1.hmtl](https://klabhub.github.io/EFMouse/montage_4x1.html) and [montage_1x1.hmtl](https://klabhub.github.io/EFMouse/montage_1x1.html).
+Run the Matlab notebooks/tutorials [montage_4x1.mlx](https://github.com/klabhub/EFMouse/blob/main/montage_4x1.mlx) and [montage_1x1.mlx](https://github.com/klabhub/EFMouse/blob/main/montage_1x1.mlx) to reproduce results in Sanchez-Romero et al.<br />
+For convenience, you can visualize (not interact with) the notebooks directly here [montage_4x1.hmtl](https://klabhub.github.io/EFMouse/montage_4x1.html) and [montage_1x1.hmtl](https://klabhub.github.io/EFMouse/montage_1x1.html).
 
-Developed by Ruben Sanchez-Romero and Bart Krekelberg<br /> 
+Developed by Ruben Sanchez-Romero, Sibel Akyuz and Bart Krekelberg<br /> 
 Center for Molecular and Behavioral Neuroscience (CMBN) Rutgers Newark<br/> 
 v1.0.0. March 2024<br/>
-For support, please open an [issue](https://github.com/klabhub/EFMouse/issues)
+For support open an [issue](https://github.com/klabhub/EFMouse/issues)
 
 If you use EFMouse in your research, please cite: Sanchez-Romero R., Akyuz, S., & Krekelberg, B. (2024). EFMouse: a Matlab toolbox to model electric fields in the mouse brain. bioRxiv. https[]()://doi.org/10.1101/2024.07.25.605227 
 
 ## Installation and dependencies
 Clone the repository from github `git clone https://github.com/klabhub/EFMouse.git`
 
-Analyzing results with reference to the Allen mouse atlas requires the [FSL 
-package](https://fsl.fmrib.ox.ac.uk/fsl/docs/#/) (to apply a transformation to the simulation results that maps them to the Allen atlas).
+Analyzing results with reference to the Allen mouse atlas requires the open-source [FSL 
+package](https://fsl.fmrib.ox.ac.uk/fsl/docs/#/) (FSL applies a transformation to the simulation results to map them to the Allen atlas).
 
 ## Tutorial
-To get started, open [montage_4x1.mlx](https://github.com/klabhub/EFMouse/blob/main/montage_4x1.mlx) or [montage_1x1.mlx](https://github.com/klabhub/EFMouse/blob/main/montage_1x1.mlx) ini Matlab and follow the compute pipeline, the analysis suggestions, 
-and for additional options, look up the help for each of the functions used in the tutorial.
+To get started, open [montage_4x1.mlx](https://github.com/klabhub/EFMouse/blob/main/montage_4x1.mlx) or [montage_1x1.mlx](https://github.com/klabhub/EFMouse/blob/main/montage_1x1.mlx) in Matlab and follow the compute pipeline, the analysis suggestions, 
+and for additional options look up the help for each of the functions used in the tutorial.
