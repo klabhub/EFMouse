@@ -17,7 +17,7 @@ If you use EFMouse in your research, please cite: Sanchez-Romero R., Akyuz, S., 
 Clone the repository from github `git clone https://github.com/klabhub/EFMouse.git`
 
 Analyzing results with reference to the Allen mouse atlas requires the open-source [FSL 
-package](https://fsl.fmrib.ox.ac.uk/fsl/docs/#/) (FSL applies a transformation to the simulation results to map them to the Allen atlas). We recommend using FSL 6.7.0 onwards.
+package](https://fsl.fmrib.ox.ac.uk/fsl/docs/#/). We recommend using FSL 6.7.0 onwards. (FSL applies a transformation to the simulation results to map them to the Allen atlas.)
 
 ## Tutorial
 To get started, open [montage_4x1.mlx](https://github.com/klabhub/EFMouse/blob/main/montage_4x1.mlx) or [montage_1x1.mlx](https://github.com/klabhub/EFMouse/blob/main/montage_1x1.mlx) in Matlab and follow the compute pipeline, the analysis suggestions, 
