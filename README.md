@@ -9,14 +9,14 @@ For convenience, you can visualize (not interact with) the notebooks directly he
 Developed by Ruben Sanchez-Romero, Sibel Akyuz and Bart Krekelberg<br /> 
 Center for Molecular and Behavioral Neuroscience (CMBN) Rutgers Newark<br/> 
 
-For support open an [issue](https://github.com/klabhub/EFMouse/issues)
+For support open an [issue](https://github.com/klabhub/EFMouse/issues).
 
 If you use EFMouse in your research, please cite: Sanchez-Romero R., Akyuz, S., & Krekelberg, B. (2024). EFMouse: a Matlab toolbox to model electric fields in the mouse brain. bioRxiv. https[]()://doi.org/10.1101/2024.07.25.605227 
 
 ## Installation and dependencies
 Clone the repository from github `git clone https://github.com/klabhub/EFMouse.git`
 
-Analyzing results with reference to the Allen mouse atlas requires the open-source [FSL 
+Analyzing results with reference to the Allen mouse atlas requires the open-source stand-alone [FSL 
 package](https://fsl.fmrib.ox.ac.uk/fsl/docs/#/). We recommend using FSL 6.7.0 onwards. (FSL applies a transformation to the simulation results to map them to the Allen atlas.)
 
 ## Tutorial
