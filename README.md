@@ -7,7 +7,7 @@ Run the Matlab notebooks [montage_4x1.mlx](https://github.com/klabhub/EFMouse/bl
 For convenience, you can visualize (not interact with) the notebooks directly here [montage_4x1.hmtl](https://klabhub.github.io/EFMouse/montage_4x1.html) and [montage_1x1.hmtl](https://klabhub.github.io/EFMouse/montage_1x1.html).
 
 Developed by Ruben Sanchez-Romero, Sibel Akyuz and Bart Krekelberg<br /> 
-Center for Molecular and Behavioral Neuroscience (CMBN) Rutgers Newark<br/> 
+Center for Molecular and Behavioral Neuroscience (CMBN), Rutgers Newark<br/> 
 
 For support open an [issue](https://github.com/klabhub/EFMouse/issues).
 
