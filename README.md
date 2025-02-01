@@ -1,4 +1,6 @@
 # EFMouse: a Matlab toolbox to model stimulation-induced electric fields in the mouse brain
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14777232.svg)](https://doi.org/10.5281/zenodo.14777232) ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
+
 The [EFMouse.m](https://github.com/klabhub/EFMouse/blob/main/EFMouse.m) Matlab class models electric fields induced by current stimulation in
 the mouse.
 
@@ -11,7 +13,7 @@ Center for Molecular and Behavioral Neuroscience (CMBN), Rutgers Newark<br/>
 
 For support open an [issue](https://github.com/klabhub/EFMouse/issues).
 
-If you use EFMouse in your research, please cite: Sanchez-Romero R., Akyuz, S., & Krekelberg, B. (2024). EFMouse: a Matlab toolbox to model stimulation-induced electric fields in the mouse brain. bioRxiv. https[]()://doi.org/10.1101/2024.07.25.605227
+If you use EFMouse in your research, please cite our manuscript: Sanchez-Romero R., Akyuz, S., & Krekelberg, B. (2024). EFMouse: a Matlab toolbox to model stimulation-induced electric fields in the mouse brain. bioRxiv. https[]()://doi.org/10.1101/2024.07.25.605227
 
 ## Installation and dependencies
 Clone the repository from github `git clone https://github.com/klabhub/EFMouse.git`
