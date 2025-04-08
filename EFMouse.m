@@ -71,7 +71,7 @@ classdef EFMouse < handle
     %% Dependent properties
     methods
 
-        function v =get.num_electrodes(o)
+        function v = get.num_electrodes(o)
             v = numel(o.eTag);
         end
 
@@ -940,22 +940,36 @@ classdef EFMouse < handle
             o.eTissue=nan(1,o.num_electrodes); % Tisse type that was used to create the electrodes.
             fprintf('-Creating %d electrodes-\n',o.num_electrodes);
             for i = 1:o.num_electrodes
-                % build the electrode by creating a sphere with user-input center
-                % and radius.
-                % https://www.mathworks.com/help/pde/ug/pde.femesh.findelements.html
-                % ("electrode" contains the mesh elements comprising the electrode.)
-                electrode = findElements(o.model.Mesh,'radius',...
-                    o.eCenter(:,i),...
-                    o.eRadius(i));
+                % determine if the electrode is circular or rectangular
+                switch o.eShape
+                    case 'circular'
+                    % build the electrode by creating a sphere with
+                    % user-input center coordinate and radius.
+                    % https://www.mathworks.com/help/pde/ug/pde.femesh.findelements.html
+                    % eg. findElements(mesh,"radius",[0 0 0],0.5)
+                    % ("electrode" contains the mesh elements comprising the electrode.)
+                    electrode = findElements(o.model.Mesh,'radius',...
+                        o.eCenter(:,i),...
+                        o.eRadius(i));
 
-                % the assigned electrode label in the mesh
-                thisId = o.addTissue(o.eTag(i), "conductor");% Add electrode labels at the end of the "tissue" list.
+                    case 'rectangular'
+                    % build the electrode creating a rectangular with
+                    % user-input x,y and z coordinates.
+                    % https://www.mathworks.com/help/pde/ug/pde.femesh.findelements.html
+                    % eg. findElements(mesh,"box",[5 10],[10 20],[1 2])
+                    electrode = findElements(o.model.Mesh,'box',...
+                            o.eXlim(:,i),o.Ylim(:,i),o.Zlim(:,i));
 
-                % Type of tissue "touched" by the electrode:
-                % this is a way to assess if our electrode is in the tissue we want
-                % if not, we need to modify center and radius.
-                tissue_touched = unique(o.mesh.label(electrode));
-                elem_tiss_touched  = zeros(1,numel(tissue_touched));
+                end
+
+                    % the assigned electrode label in the mesh
+                    thisId = o.addTissue(o.eTag(i), "conductor");% Add electrode labels at the end of the "tissue" list.
+
+                    % Type of tissue "touched" by the electrode:
+                    % this is a way to assess if our electrode is in the tissue we want
+                    % if not, we need to modify center and radius.
+                    tissue_touched = unique(o.mesh.label(electrode));
+                    elem_tiss_touched  = zeros(1,numel(tissue_touched));
 
                 fprintf(' Electrode: %s: touching tissue:\n',o.eTag(i));
                 for t = 1:numel(tissue_touched)
