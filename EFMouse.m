@@ -22,11 +22,15 @@ classdef EFMouse < handle
 
     properties (SetAccess=public, GetAccess=public)
         eTag (1,:) string      % names for the N stimulation electrodes
-        eCurrent (1,:) double  % currents applied to the N electrodes
-        eCenter (3,:) double   % 3*N xyz locations of the N electrodes
-        eRadius (1,:)         % radii of the N electrodes
+        eShape (1,:) string     % shape of the N electrodes
+        eCurrent (1,:) double  % currents applied to the circular electrodes
+        eCenter (3,:) double   %  xyz locations of the circular electrodes
+        eRadius (1,:) double     % radii of the circular electrodes
+        eXcoord (1,:) double    % [a b] x-coord of the rectangular electrodes
+        eYcoord (1,:) double    % [a b] y-coord of the rectangular electrodes
+        eZcoord (1,:) double    % [a b] z-coord of the rectangular electrodes
         eTissue (1,:) double   % Tissue type of the electrodes
-        cCenter (3,:)  double   % XYZ location of the center of the craniotomy
+        cCenter (3,:)  double   % xyz location of the center of the craniotomy
         cRadius  (1,1) double   % Radius of the craniotomy
 
         dir (1,1) string = tempdir  % Directory where output files will be written
@@ -174,7 +178,11 @@ classdef EFMouse < handle
 
         function validate(o)
             % Validate that the model specifications meet the requirements
-            assert(all(numel(o.eTag) == [numel(o.eCurrent) size(o.eCenter,2) numel(o.eRadius)]),'Each electrode must be assigned a current, a center, and a radius in o.electrodes');
+            
+            % Make a new assert considering circular and rectangular
+            % electrodes
+            %assert(all(numel(o.eTag) == [numel(o.eCurrent) size(o.eCenter,2) numel(o.eRadius)]),'Each electrode must be assigned a current, a center, and a radius in o.electrodes');
+            
             assert(sum(o.eCurrent)<eps,'Stimulation currents must add up to zero.')
             assert(size(o.cCenter,2)<2,'Only 1 craniotomy can be modeled.');
         end
@@ -494,7 +502,7 @@ classdef EFMouse < handle
             tic
             clf;
             % Plot the soft tissue of the mesh
-            [tf,ix] = meshHasTissue(o,"gray");
+            [tf,ix] = meshHasTissue(o,"skin");
             if tf
                 % ix=ix(1:6:end);
                 pdeplot3D(o.mesh.node,o.mesh.elem(:,ix),'FaceColor','white','FaceAlpha',0.001);
@@ -901,7 +909,6 @@ classdef EFMouse < handle
             o.model = createpde();
             geometryFromMesh(o.model,o.mesh.node,o.mesh.elem,o.mesh.label);
 
-
             %% If defined, create the craniotomy: we are just modeling one craniotomy
             % craniotomy may or may not be defined, depending on the experiment
             % simulated.
@@ -941,7 +948,7 @@ classdef EFMouse < handle
             fprintf('-Creating %d electrodes-\n',o.num_electrodes);
             for i = 1:o.num_electrodes
                 % determine if the electrode is circular or rectangular
-                switch o.eShape
+                switch o.eShape(i)
                     case 'circular'
                     % build the electrode by creating a sphere with
                     % user-input center coordinate and radius.
@@ -958,7 +965,9 @@ classdef EFMouse < handle
                     % https://www.mathworks.com/help/pde/ug/pde.femesh.findelements.html
                     % eg. findElements(mesh,"box",[5 10],[10 20],[1 2])
                     electrode = findElements(o.model.Mesh,'box',...
-                            o.eXlim(:,i),o.Ylim(:,i),o.Zlim(:,i));
+                            o.eXcoord,...
+                            o.eYcoord,...
+                            o.eZcoord);
 
                 end
 
