@@ -21,6 +21,8 @@ Clone the repository from github `git clone https://github.com/klabhub/EFMouse.g
 Analyzing results with reference to the Allen mouse atlas requires the open-source stand-alone [FSL 
 package](https://fsl.fmrib.ox.ac.uk/fsl/docs/#/). We recommend using FSL 6.7.0 onwards. (FSL applies a transformation to the simulation results to map them to the Allen atlas.)
 
+Mesh operations require Matlab Partial Differential Equation Toolbox.
+
 ## Tutorial
 To get started, open [montage_4x1.mlx](https://github.com/klabhub/EFMouse/blob/main/montage_4x1.mlx) or [montage_1x1.mlx](https://github.com/klabhub/EFMouse/blob/main/montage_1x1.mlx) in Matlab and follow the compute pipeline, the analysis suggestions, 
 and for additional options look up the help for each of the functions used in the tutorial.
