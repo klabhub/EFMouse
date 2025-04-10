@@ -15,10 +15,12 @@ o.eCenter = [-3.56,29.5,5.45;
               -1.2,27.11,6.29]';
 % radius of the electrodes (in mesh space units) (1 mesh unit ~ 1 mm)
 o.eRadius = [0.71,0.67,0.64,0.6]';
+
+
 % for the 1 rectangular return electrode in the lumbar
-o.eXcoord = [-13.4319,11.068]';
-o.eYcoord = [-21.905,2.595]';
-o.eZcoord = [8.5093,9.5093]';
+%o.eXcoord = [-13.4319,11.068]';
+%o.eYcoord = [-21.905,2.595]';
+%o.eZcoord = [8.5093,9.5093]';
 
 % center coordinate of the craniotomy position (in mesh space)
 o.cCenter = [-3.4236,27.1067,5]';

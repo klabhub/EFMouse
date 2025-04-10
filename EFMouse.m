@@ -39,8 +39,9 @@ classdef EFMouse < handle
         log (1,1) logical = true; % Create a log file
 
         % Table of materials with their conductivities. Defaults from ROAST
-        conductivityTable dictionary =   dictionary(["gray" "csf" "bone" "skin" "eye" "air"     "conductor" "boundary"],...
-            [0.275  1.654  0.01  0.465  0.5    2.5e-14  59e6        59e6]);
+        % TODO: add rubber
+        conductivityTable dictionary =   dictionary(["gray" "csf" "bone" "skin" "eye" "air" "conductor" "boundary"],...
+            [0.275 1.654 0.01 0.465 0.5 2.5e-14 59e6 59e6]);
         % Map linking a tissue name to an integer ID. Use addTissue to fill.
         tissueLabel  dictionary = dictionary(string([]),[])
 
@@ -578,7 +579,7 @@ classdef EFMouse < handle
     end
 
     %% Functions to add or search for tissue types
-    methods (Access= public)
+    methods (Access = public)
         function v = labelToTissue(o,id)
             % Given a tissue type id (a number), return its tissue label (
             % a string)
@@ -946,7 +947,8 @@ classdef EFMouse < handle
             %% define the n electrodes
             o.eTissue=nan(1,o.num_electrodes); % Tisse type that was used to create the electrodes.
             fprintf('-Creating %d electrodes-\n',o.num_electrodes);
-            for i = 1:o.num_electrodes
+            % test just plot circular electrodes 1 to 4
+            for i = 1:o.num_electrodes-1
                 % determine if the electrode is circular or rectangular
                 switch o.eShape(i)
                     case 'circular'
