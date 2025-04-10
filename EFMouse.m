@@ -180,7 +180,7 @@ classdef EFMouse < handle
         function validate(o)
             % Validate that the model specifications meet the requirements
             
-            % Make a new assert considering circular and rectangular
+            % TODO: Make a new assert considering circular and rectangular
             % electrodes
             %assert(all(numel(o.eTag) == [numel(o.eCurrent) size(o.eCenter,2) numel(o.eRadius)]),'Each electrode must be assigned a current, a center, and a radius in o.electrodes');
             
@@ -992,7 +992,7 @@ classdef EFMouse < handle
                 % create electrode only in the max touched tissue
                 [~,idx] = max(elem_tiss_touched);
                 tiss_elec = tissue_touched(idx);
-                fprintf('   Creating electrode %s in max touched tissue: %s.\n',o.eTag(i),o.labelToTissue(tiss_elec))
+                fprintf('   Creating %s electrode %s in max touched tissue: %s.\n',o.eShape(i),o.eTag(i),o.labelToTissue(tiss_elec))
                 change = electrode(o.mesh.label(electrode)==tiss_elec);
                 o.mesh.label(change) = thisId;
                 % Save the tissue where the electrode was inserted, this will be used

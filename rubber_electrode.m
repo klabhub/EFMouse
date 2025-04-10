@@ -4,9 +4,12 @@ rubber_elec = createpde();
 % https://elifesciences.org/reviewed-preprints/100941v2#s2
 % 600 mm^2 seems too big, divide by two (for now)
 % check in more papers
+
+% ****User defined:
 x_size = 24.5/2;
 y_size = 24.5/2;
 z_size = 1;
+
 % create a Matlab geometry object, discrete geometry
 % https://www.mathworks.com/help/pde/ug/multicuboid.html
 % https://www.mathworks.com/help/pde/ug/pde.discretegeometry.html
@@ -32,6 +35,7 @@ rubber_elem = rubber_elec.Mesh.Elements';
 % for now use the same label as circular electrodes.
 % new info. needs to be added: rubber label and conductivity
 % use label = 12 for lumbar return
+% this is defined from number of tissue + number of electrodes
 rubber_label = ones(size(rubber_elem,1),1)*12;
 
 % plot for checking
@@ -40,13 +44,16 @@ pdemesh(rubber_elec)
 % also can use pdeviz(rubber_electrode.Mesh)
 
 %% Open mouse mesh and extract node and elements and labels
-mouse = EFMouse(dir='/Users/rubensanchez/desktop/EFMouse/4x1Montage_rubber',ID='4x1_rubber');
-mouse_node = mouse.mesh.node';
-mouse_elem = mouse.mesh.elem';
-mouse_label = mouse.mesh.label';
+% open like this is just for the test
+o = EFMouse(dir='/Users/rubensanchez/desktop/EFMouse/4x1Montage_rubber',ID='4x1_rubber');
+mouse_node = o.mesh.node';
+mouse_elem = o.mesh.elem';
+mouse_label = o.mesh.label';
 % plot 
 figure;
 pdemesh(mouse_node',mouse_elem',FaceColor='white');
+
+% ****User defined:
 % use the plot to get the xy,z center where the rubber electrode will be positioned
 px = -1.64209;
 py = -14.5699;
@@ -54,13 +61,13 @@ py = -14.5699;
 pz = 10;
 
 %% move rubber electrode to the new position
+% rubber electrode is created above in [0,0,0] center
 rubber_node = rubber_node + [px,py,pz];
+% plot for checking
 hold on;
 pdemesh(rubber_node',rubber_elem')
 
 %% combine the two meshes and reindex nodes
-% concatenate labels (they define the tissue and conductivity);
-comb_label = [mouse_label;rubber_label];
 % concatenate the node coordinates info.
 comb_node = [mouse_node; rubber_node];
 % get number of nodes for reindexing
@@ -68,6 +75,8 @@ num_mouse_node = size(mouse_node, 1);
 % change element node indices (each tetrahedron (row of elem) is defined 
 % by 4 nodes), then concatenate elements.
 comb_elem = [mouse_elem; (rubber_elem + num_mouse_node)];
+% concatenate labels (they define the tissue and conductivity);
+comb_label = [mouse_label;rubber_label];
 
 % plot
 figure;
@@ -79,4 +88,12 @@ figure;
 pdemesh(comb_node',comb_elem(comb_label == 12,:)',FaceColor='green')
 
 
+% redefine the mesh using the added rubber electrode
+o.mesh.node = comb_node';
+o.mesh.elem = comb_elem';
+o.mesh.label = comb_label';
 
+% add tissue and tissue label
+o.eTissue(5) = 4;
+o.tissueLabel("Lumbar") = 12;
+o.tissueMaterial("Lumbar") = "conductor";
