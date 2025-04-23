@@ -50,7 +50,7 @@ classdef EFMouse < handle
         mesh (1,1) struct = struct('node',[],'elem',[],'label',[],'boundary',[],'boundaryLabel',[],'face',[]);
     end
 
-    properties (SetAccess =protected, GetAccess=public)
+    properties (SetAccess =public, GetAccess=public)
         stage double {mustBeInteger,mustBeInRange(stage,-1,5)} = -1  % Start at stage = -1
         model
 
@@ -343,6 +343,7 @@ classdef EFMouse < handle
             tic
             fprintf('----Starting plotEf...%s\n',datetime('now'));
             tissueId = o.tissueToLabel(pv.tissue);
+            %tissueId = 12;
 
             %%% Color limits for the colormap:
             % One of the challenge of the visualization is the distribution
@@ -966,10 +967,10 @@ classdef EFMouse < handle
                     % user-input x,y and z coordinates.
                     % https://www.mathworks.com/help/pde/ug/pde.femesh.findelements.html
                     % eg. findElements(mesh,"box",[5 10],[10 20],[1 2])
-                    electrode = findElements(o.model.Mesh,'box',...
-                            o.eXcoord,...
-                            o.eYcoord,...
-                            o.eZcoord);
+                    %electrode = findElements(o.model.Mesh,'box',...
+                    %        o.eXcoord,...
+                    %        o.eYcoord,...
+                    %        o.eZcoord);
 
                 end
 

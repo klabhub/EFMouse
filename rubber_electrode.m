@@ -16,7 +16,7 @@ z_size = 1;
 gm = multicuboid(x_size, y_size, z_size);
 rubber_elec.Geometry = gm;
 % tetrahedral mesh for a 3-D geometry 
-% saved in rubber_electrode.Mesh
+% saved in rubber_elec.Mesh
 % see mouseMeshEdgeLength.m to get edge_length value
 % use the resolution of the mouse mesh for consistent modelling
 % (for previous circular electrodes and craniotomy, this was not used)
@@ -58,12 +58,14 @@ pdemesh(mouse_node',mouse_elem',FaceColor='white');
 px = -1.64209;
 py = -14.5699;
 %pz = 8.92358;
-pz = 10;
+%pz = 10; % some part touching
+%pz = 11; % flying
+pz = 8; %inside
 
 %% move rubber electrode to the new position
 % rubber electrode is created above in [0,0,0] center
 rubber_node = rubber_node + [px,py,pz];
-% plot for checking
+% plot for checking positioning
 hold on;
 pdemesh(rubber_node',rubber_elem')
 
@@ -96,4 +98,6 @@ o.mesh.label = comb_label';
 % add tissue and tissue label
 o.eTissue(5) = 4;
 o.tissueLabel("Lumbar") = 12;
+% need to temporary change EFMouse to make this propery public, so it can
+% be changed by hand. Check if error shows.
 o.tissueMaterial("Lumbar") = "conductor";
