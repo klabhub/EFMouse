@@ -101,3 +101,5 @@ o.tissueLabel("Lumbar") = 12;
 % need to temporary change EFMouse to make this propery public, so it can
 % be changed by hand. Check if error shows.
 o.tissueMaterial("Lumbar") = "conductor";
+
+%save(file(o,"OBJECT"),"o");
