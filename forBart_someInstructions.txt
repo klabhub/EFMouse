@@ -13,5 +13,7 @@ Check and adjust as necessary.
 
 Create 1 return electrode in the back
 2. Run "gel_electrode.m"
+This is where the new electrode will be created and merged/connected into the mouse
+mesh such that the EF problem gets properly solved.
 
  
