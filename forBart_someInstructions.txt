@@ -16,4 +16,5 @@ Create 1 return electrode in the back
 This is where the new electrode will be created and merged/connected into the mouse
 mesh such that the EF problem gets properly solved.
 
- 
+You can also check "rubber_electrode.m" for a previous attempt for creating
+a square electrode in the back.
