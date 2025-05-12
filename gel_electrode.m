@@ -1,14 +1,15 @@
-% right now no gel
+% right now no gel layers. Need to be added
 
 % run this after running test_for_rubber_electrode.m
-o = EFMouse(dir='/Users/rubensanchez/desktop/EFMouse/4x1Montage_copyUp',ID='4x1_copyUp');
+o = EFMouse(dir='/Users/rubensanchez/desktop/EFMouse/4x1Montage_border',ID='4x1_border');
+
 mouse_node = o.mesh.node';
 mouse_elem = o.mesh.elem';
 mouse_label = o.mesh.label';
 
 % make a findElement electrode and then copy it and move it up
 
-i = 5; % the othe four are stimulation electrodes already defined
+i = 5; % the other four are stimulation electrodes already defined
 o.eCenter(:,i) = [-1.1819,-9.655,10.129]; %this is just aux, not the final center coordinates of the electrode
 o.eRadius(:,i) = 12.25/2; 
 aux_electrode = findElements(o.model.Mesh,'radius',...
@@ -34,6 +35,8 @@ aux_elem = mouse_elem(aux_electrode,:);
 
 
 % create the "floating" electrode
+% This was the first try. It did not work, because we only want a "thin"
+% rubber electrode.
 
 % find all the nodes ids
 aux_node_idx = unique(aux_elem);
@@ -57,10 +60,6 @@ elec_node_idx = [num_mouse_node + (1:length(aux_node_idx))]';
 % the final electrode)
 node_mapping = dictionary(aux_node_idx, elec_node_idx);
 
-
-% copy and then update the node IDs of the final electrode elements
-%elec_elements = aux_elem;  
-
 % update node ids using the node_mapping dictionary
 elec_elem = node_mapping(aux_elem); 
 
@@ -78,5 +77,6 @@ o.mesh.elem = comb_elem';
 o.mesh.label = comb_label';
 
 
+% plot and save as necessary
 %pdemesh(comb_node',comb_elem',FaceColor='red');
 %save(file(o,"OBJECT"),"o");

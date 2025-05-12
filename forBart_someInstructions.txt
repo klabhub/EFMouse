@@ -1,0 +1,17 @@
+This is how I am trying to simulate a rubber electrode in the back of the
+mouse.
+Things missing:
+   1) rubber conductivity values. (Using electrode conductivity value)
+   2) addition of gel layer and conductivity value.
+   3) Add certain parameters of the back electrode to run the EF analysis. 
+      With the added elements the original code needs to be adjusted.
+   4) (3) can be done once we are sure we are getting the rubber electrode mesh properly.
+
+Simulate the 4 stimulation electrode using standard EFMouse tools
+1. Run "test_for_rubber_electrode.m"
+Check and adjust as necessary.
+
+Create 1 return electrode in the back
+2. Run "gel_electrode.m"
+
+ 

@@ -1,11 +1,12 @@
+% get the elements that are in the boundary
 % Tetrahedral elements (4 nodes each)
-faces = [elements(:,[1 2 3]);
-         elements(:,[1 2 4]);
-         elements(:,[1 3 4]);
-         elements(:,[2 3 4])];
+aux_faces = [aux_elem(:,[1 2 3]);
+         aux_elem(:,[1 2 4]);
+         aux_elem(:,[1 3 4]);
+         aux_elem(:,[2 3 4])];
  
 % Sort faces to ignore orientation
-sortedFaces = sort(faces, 2);
+sortedFaces = sort(aux_faces, 2);
  
 % Count face appearances
 [uniqueFaces, ~, ic] = unique(sortedFaces, 'rows');
@@ -15,4 +16,7 @@ counts = accumarray(ic, 1);
 boundaryFaces = uniqueFaces(counts == 1, :);
  
 % Boundary nodes
-boundaryNodes = unique(boundaryFaces(:));
+boundaryNodeIDs = unique(boundaryFaces(:));
+boundaryNodes = mouse_node(boundaryNodeIDs, :);
+
+
