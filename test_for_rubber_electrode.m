@@ -1,3 +1,4 @@
+% May 12,2025
 % after this script, run rubber_electrode.m
 % adjust o.dir and o.ID as needed.
 
@@ -10,6 +11,10 @@ o.log  = true;  % Create a log file.
 
 o.initialize(overwrite=true);
 
+
+% I made some changes to the computeMesh function to add manually the
+% the last return electrode. (Eventually the function needs to be expanded
+% to consider different shape/types of electrodes)
 o.eTag = ["Anterior" "Posterior" "Lateral" "Medial" "Lumbar"];
 o.eShape = ["circular" "circular" "circular" "circular" "circular"];
 o.eCurrent = [0.05,0.05,0.05,0.05,-0.2];
