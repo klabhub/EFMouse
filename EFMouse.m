@@ -2,7 +2,11 @@ classdef EFMouse < handle
     % A class to model electric fields induced by current stimulation in
     % the mouse.
     %
-    %
+    % To get started, see the example / tutorial simulations in the mlx 
+    % files in this folder.
+    % 
+    % NOTES:
+    % 
     % Function starting with 'compute' form the pipeline to model the
     % electric field; they are called in the right order by the run function.
     %
@@ -16,43 +20,44 @@ classdef EFMouse < handle
     % Ruben Sanchez-Romero and Bart Krekelberg
     % Center for Molecular and Behavioral Neuroscience (CMBN)
     % Rutgers Newark
-    % March 2024
-
-
+    %
+    % March 2024 - Initial version
+    % May 2025 - Major updates for surface electrodes and user interface
 
     properties (SetAccess=public, GetAccess=public)
-        eTag (1,:) string      % names for the N stimulation electrodes
-        eCurrent (1,:) double  % currents applied to the N electrodes
-        eCenter (3,:) double   % 3*N xyz locations of the N electrodes
-        eRadius (1,:)         % radii of the N electrodes
-        eTissue (1,:) double   % Tissue type of the electrodes
-        cCenter (3,:)  double   % XYZ location of the center of the craniotomy
-        cRadius  (1,1) double   % Radius of the craniotomy
-
-        dir (1,1) string = tempdir  % Directory where output files will be written
+        %% Bookkeeping
+        dir (1,1) string = fullfile(tempdir,"efmouse");% Directory where output files will be written
         ID (1,1) string =  "AnID"   % A label for this simulation model
-
         log (1,1) logical = true; % Create a log file
 
-        % Table of materials with their conductivities. Defaults from ROAST
-        conductivityTable dictionary =   dictionary(["gray" "csf" "bone" "skin" "eye" "air"     "conductor" "boundary"],...
-            [0.275  1.654  0.01  0.465  0.5    2.5e-14  59e6        59e6]);
-        % Map linking a tissue name to an integer ID. Use addTissue to fill.
-        tissueLabel  dictionary = dictionary(string([]),[])
-
-        % The mesh is loaded from file (setupBaseModel) then updated in computeMesh and
-        % computeBoundaryConditions
-        mesh (1,1) struct = struct('node',[],'elem',[],'label',[],'boundary',[],'boundaryLabel',[],'face',[]);
+        % Table of materials with their conductivities. Defaults from ROAST, in S/m.
+        conductivityTable dictionary =   dictionary(["gray" "csf" "bone" "skin" "eye" "air"    "conductor" "gel"],...
+                                                    [0.275   1.654 0.01   0.465  0.5   2.5e-14  59e6        0.3]);
     end
 
-    properties (SetAccess =protected, GetAccess=public)
-        stage double {mustBeInteger,mustBeInRange(stage,-1,5)} = -1  % Start at stage = -1
-        model
+    properties (SetAccess =protected)
+        % Dictionary to look up electrode properties
+        % (electrode tag/name -> struc with properties)
+        electrode (1,1) dictionary =dictionary(string([]),struct([]));
+        % Dictionary to look up craniotomy properties
+        % (craniotomy/name -> struct with properties)
+        craniotomy (1,1) dictionary =dictionary(string([]),struct([]));
+        % The mesh is loaded from file (setupBaseModel) then updated in computeMesh and
+        % computeBoundaryConditions
+        mesh (1,1) struct = struct('node',[],'elem',[],'label',[],'boundary',[],'boundaryLabel',[],'face',[],'centroid',[],'surface',struct('face',[],'tet',[]));
 
-        tissueMaterial  dictionary  = dictionary(string([]),string([]))% Map linking a tissue name to its conductivity. Filled by addTissue
-        eArea (1,:) double   % Boundary area for each electrode
-        baseModel (1,1) string %Can only be set on construction
+        % Map linking a tissue name to an integer ID. Use addTissue to fill.
+        % These are used to label tetrahedra
+        tissueLabel  dictionary = dictionary(string([]),[])
+        % Map linking a tissue to a boundary. Use addBoundary to fill.
+        % These are used to label surfaces (current in/out boundary
+        % conditions)
+        boundaryLabel  dictionary = dictionary(string([]),[])
 
+        % Map linking a tissue name to its conductivity. Filled by addTissue
+        tissueMaterial  dictionary  = dictionary(string([]),string([]))
+        baseModel (1,1) string         % Can only be set on construction
+        stage Stage = Stage.UNDEF       % Current completion stage.
     end
 
     properties (SetAccess =protected, GetAccess=public,Transient)
@@ -65,23 +70,19 @@ classdef EFMouse < handle
     properties (Dependent)
         num_electrodes (1,1) double   % Number of stimulation electrodes
         has_craniotomy (1,1) logical  % Does the model have a craniotomy?
-
     end
 
     %% Dependent properties
     methods
-
-        function v =get.num_electrodes(o)
-            v = numel(o.eTag);
+        function v = get.num_electrodes(o)
+            v = o.electrode.numEntries;
         end
-
         function v = get.has_craniotomy(o)
-            v = ~isempty(o.cCenter);
+            v = o.craniotomy.numEntries> 0;
         end
     end
 
-
-    %% Construction and Initialization
+    %% Construction, initialization, and run
     methods (Access=public)
         function o= EFMouse(pv)
             % Constructor for an EFMouse object
@@ -100,7 +101,7 @@ classdef EFMouse < handle
                 o.dir = pv.dir;
                 o.ID  = pv.ID;
                 load(file(o,"OBJECT"),'o');
-                if o.stage >=4
+                if o.stage >=Stage.GETDP
                     % Read the simulation results from file and store in the object
                     o.field = readGetDp(o,type="E");
                     o.voltage = readGetDp(o,type="V");
@@ -111,44 +112,30 @@ classdef EFMouse < handle
             end
         end
 
-        function disp(o)
-            fprintf('EF Mouse Model (label: %s) in directory %s (stage=%d).\n',o.ID,o.dir,o.stage)
-        end
-
-        function initialize(o,pv)
-            arguments
-                o (1,1) EFMouse
-                pv.overwrite (1,1) logical= false
-            end
-            if o.stage>-1;return;end
-            here = fileparts(mfilename('fullpath'));
-            addpath(fullfile(here,'lib/NIfTI_20140122'))
-            % make the dir if it does not exist
-            if exist(o.dir,'dir')
-                if pv.overwrite
-                    delete(fullfile(o.dir,'*.*'))
-                else
-                    error('Folder %s already exists. Load it by specifying dir and id to the constructor, or set overwrite to true to start fresh.\n',o.dir);
-                end
-            else
-                mkdir(o.dir);
-            end
-
-            % Setup the base model
-            setupBaseModel(o)
-            % We are now at stage ==0
-            o.field = nan(0,3);
-            o.voltage = nan(0,1);
-            o.stage  = 0;
-        end
-
-
         function setupBaseModel(o)
+            % Reads the base model from file (or creates that file if it
+            % does not exist)
+            file = fullfile("aux_files",o.baseModel+ ".mat");
+            if ~isfile(file)
+                % Try to create it
+                fprintf('%s model does not exist. Trying to create it.\n',file)
+                createBaseModel(o);
+            end
+            load(file,'mesh','tissueLabel','tissueMaterial');
+            o.mesh = mesh; %#ok<PROP>
+            o.tissueLabel = tissueLabel; %#ok<PROP>
+            o.tissueMaterial = tissueMaterial;%#ok<PROP>
+        end
+
+        function createBaseModel(o)
+            % Create a base model on disk (to avoid redoing some operations
+            % in updateModel that can be time consuming and often only need
+            % to be done once).
             switch upper(o.baseModel)
                 case "ALEKSEICHUK"
                     % load the "clean" mouse mesh (ie. no electrodes or
                     % craniotomy) that Alekseichuk et al created.
-                    load('aux_files/EFMouse_mesh_clean.mat','elem','face','node');
+                    load('aux_files/Alekseichuk_mesh_clean.mat','elem','face','node');
                     %Store in the object
                     o.mesh.node = node;
                     o.mesh.elem = elem(1:4,:);
@@ -157,9 +144,6 @@ classdef EFMouse < handle
                     % Map tissue type to labels in the mesh and link them
                     % to entries (with the same name) in the conductivityTable
                     o.addTissue(["gray", "csf"  "bone"  "skin"   "eye"],["gray", "csf"  "bone"  "skin"   "eye"],1:5);
-                    % Add tissue types for craniotomy and the skin lesion above
-                    % and link them to a material with conductivity.
-                    o.addTissue(["craniotomy", "skinremoved"], ["csf" "air"],6:7);
                 case "NONE"
                     % Use this if you want to specify the base model "by
                     % hand", without changing any of the class code. This
@@ -170,90 +154,73 @@ classdef EFMouse < handle
                 otherwise
                     error('Unknown baseModel %s (Add it to setupBaseModel?)',o.baseModel)
             end
+            o.updateModel;
+            % Extract the elements to save in the file
+            mesh                = o.mesh; %#ok<PROP>
+            tissueMaterial      = o.tissueMaterial;%#ok<PROP>
+            tissueLabel         = o.tissueLabel;%#ok<PROP>
+            filename            = fullfile('aux_files',o.baseModel);
+            % Save
+            save(filename,'mesh','tissueMaterial','tissueLabel','-v7.3');
+            fprintf('%s base model saved.\n',filename);
         end
 
-        function validate(o)
-            % Validate that the model specifications meet the requirements
-            assert(all(numel(o.eTag) == [numel(o.eCurrent) size(o.eCenter,2) numel(o.eRadius)]),'Each electrode must be assigned a current, a center, and a radius in o.electrodes');
-            assert(sum(o.eCurrent)<eps,'Stimulation currents must add up to zero.')
-            assert(size(o.cCenter,2)<2,'Only 1 craniotomy can be modeled.');
+
+        function disp(o)
+            fprintf('EF Mouse Model (label: %s) in directory %s (stage=%s).\n',o.ID,o.dir,o.stage)
         end
 
-        function v= file(o,tag)
-            % Various files are saved and loaded by different functions, to
-            % ensure consistent naming, the filenames are all created here.
+
+        function initialize(o,pv)
             arguments
                 o (1,1) EFMouse
-                tag (1,1) string {mustBeMember(tag,["OBJECT" "LOG" "E" "V" "TRANS" "DIGIMOUSE" "MESH" "PRO" ...
-                    "GETDP" "EMAGNII" "EXNII" "EYNII" "EZNII" ...
-                    "ALLEN" "ALLENLABELS"])}
+                pv.overwrite (1,1) logical= false
             end
-            installDir = fileparts(mfilename("fullpath"));
-            switch tag
-                case "OBJECT"
-                    v = fullfile(o.dir,o.ID + ".mat");
-                case "LOG"
-                    v = fullfile(o.dir,o.ID + "_logfile.txt");
-                case "E"
-                    v = fullfile(o.dir,o.ID + "_e.pos");
-                case "V"
-                    v = fullfile(o.dir,o.ID + "_v.pos");
-                case "TRANS"
-                    v = fullfile(installDir,"aux_files","transMatrix_ef2Digimouse.mat");
-                case "DIGIMOUSE"
-                    v = fullfile(installDir,"aux_files","EFMouse_digimouseAtlas.nii.gz");
-                case "MESH"
-                    v = fullfile(o.dir,o.ID+ ".msh");
-                case "PRO"
-                    v = fullfile(o.dir,o.ID+ ".pro");
-                case "GETDP"
-                    % Run getDP
-                    str = computer('arch');
-                    switch str
-                        case 'win64'
-                            exe = "getdp.exe";
-                        case 'glnxa64'
-                            exe = "getdp";
-                        case 'maci64'
-                            exe = "getdpMac";
-                        otherwise
-                            error('Unsupported operating system!');
-                    end
-                    v = fullfile(installDir,"lib","getdp-3.2.0","bin", exe);
-                case "EMAGNII"
-                    v = fullfile(o.dir,o.ID + "_efm.nii.gz");
-                case "EXNII"
-                    v = fullfile(o.dir,o.ID + "_efX.nii.gz");
-                case "EYNII"
-                    v = fullfile(o.dir,o.ID + "_efY.nii.gz");
-                case "EZNII"
-                    v = fullfile(o.dir,o.ID + "_efZ.nii.gz");
-                case "ALLEN"
-                    v = fullfile(installDir,"aux_files","EFMouse_allenAtlas.nii.gz");
-                case "ALLENLABELS"
-                    v = fullfile(installDir,"aux_files","allenAtlas_labels.mat");
-                otherwise
-                    % cannot happen
+            o.stopLog;
+            here = fileparts(mfilename('fullpath'));
+            addpath(fullfile(here,'lib/NIfTI_20140122'));
+            % make the dir if it does not exist
+            if exist(o.dir,'dir')
+                if pv.overwrite
+                    delete(fullfile(o.dir,'*.*'))
+                else
+                    error('Folder %s already exists. Load it by specifying dir and id to the constructor, or set overwrite to true to start fresh.\n',o.dir);
+                end
+            else
+                mkdir(o.dir);
             end
+            o.startLog;
+            % Setup the base model
+            setupBaseModel(o)
+            % Reset members
+            o.field = nan(0,3);
+            o.voltage = nan(0,1);
+            o.mesh.boundary = [];
+            o.mesh.boundaryLabel = [];
+            o.boundaryLabel = configureDictionary("string","double"); % Start empty
+            o.stage  = Stage.INIT;
         end
 
 
         function run(o,pv)
             % RUN runs all stages of the pipeline up to the specified target stage
-            % By default the full pipeline is run (all the way to stage 4)
-            %   0: Start with a clean mouse mesh
-            %   1: Create electrode and craniotomy in the mouse mesh.
-            %   2: Compute electrode areas and set boundary conditions .
-            %   3: Export mesh and model definitions for getDP
-            %   4: Run getDP to solve the electric field model.
-            % OPTIONS
-            % targetStage : run the pipeline to this stage.
-            % clearLog: Clear the log file (if logging is on)
-            % startStage: Run the pipeline from this stage.
-            % show: plot the mesh and the EF simulation results
+            %   Stage.INIT : Start with a clean mouse mesh
+            %   Stage.MESH : Create electrode and craniotomy in the mouse mesh.
+            %   Stage.EXPORT: Export mesh and model definitions for getDP
+            %   Stage.GETDP: Run getDP to solve the electric field model.
+            %   Stage.ATLAS : Match results to the ABA atlas
+            %
+            % OPTIONS and their defaults
+            % targetStage : run the pipeline to this stage. [Stage.GETDP]
+            % clearLog: Clear the log file (if logging is on) [false]
+            % startStage: Run the pipeline from this stage. By default the
+            % pipeline continues where it left off. To force rerunning a
+            % stage, set this to the name of that stage (or an earlier one
+            % to start from there).
+            % show: plot the mesh and the EF simulation results [true]
             arguments
                 o (1,1) EFMouse
-                pv.targetStage (1,1) double {mustBeInteger,mustBePositive}  = 4
+                pv.targetStage (1,1) Stage = Stage.GETDP
                 pv.clearLog (1,1) logical = false
                 pv.startStage (1,1) double = o.stage+1
                 pv.show  (1,1) logical = true
@@ -261,53 +228,207 @@ classdef EFMouse < handle
             if pv.clearLog
                 o.clearLog
             end
-            o.stage = min(o.stage,pv.startStage-1);
 
+            o.stage = min(o.stage,pv.startStage-1);
             if o.stage < pv.targetStage-1
                 % Recurse to make sure the pipeline has completed everything up to
                 % the stage before the target stage, then run target stage.
                 run(o,targetStage = pv.targetStage-1,clearLog = pv.clearLog,show = pv.show);
             elseif pv.targetStage <= o.stage
                 % Nothing do
-                fprintf('Stage %d already completed.\n',pv.targetStage)
+                fprintf('Stage %s already completed.\n',pv.targetStage)
                 return;
             end
             %Map stages to compute functions
             tic;
+            fprintf('Compute stage %s\n',pv.targetStage)
             switch (pv.targetStage)
-                case 0
+                case Stage.INIT
                     % Load the base mesh
-                    fprintf('Compute stage %d - %s\n',pv.targetStage,"initialize")
                     o.initialize(overwrite=true);
-                case 1
+                case Stage.MESH
                     % Create the electrodes and craniotomy in the mesh
-                    fprintf('Compute stage %d - %s\n',pv.targetStage,"computeMesh")
                     validate(o);
                     computeMesh(o,show=pv.show);
-                case 2
-                    % Find electrode edges to impose boundary conditions
-                    fprintf('Compute stage %d - %s\n',pv.targetStage,"computeBoundary")
-                    computeBoundary(o);
-                case 3
+                case Stage.EXPORT
                     % save the .msh and .pro files
-                    fprintf('Compute stage %d - %s\n',pv.targetStage,"export data")
                     saveMesh(o);
                     savePro(o);
-                    o.stage = 3;
-                case 4
+                    o.stage = Stage.EXPORT;
+                case Stage.GETDP
                     % run the GetDP solver to compute electric field
                     % (takes ~30 minutes in a 16G ram mac)
-                    fprintf('Compute stage %d - %s\n',pv.targetStage,"computeField")
                     computeField(o,show=pv.show);
-                case 5
-                    fprintf('Compute stage %d - %s\n',pv.targetStage,"computeVoxelSpace")
+                case Stage.ATLAS
                     computeVoxelSpace(o);
                 otherwise
-                    error('Stage %d??',pv.targetStage)
+                    error('Stage %s??',pv.targetStage)
             end
             save(file(o,"OBJECT"),"o"); % Save so we can pick up later.
-            fprintf('Stage %d complete - %.4f seconds \n',o.stage,toc)
+            fprintf('Stage %s complete - %.4f seconds \n',o.stage,toc)
         end
+
+    end
+
+    %% User interface to add electrodes, craniotomies, and to find regions of interest.
+    methods (Access=public)
+    
+        function addElectrode(o,pv)
+            % Add an electrode to the model
+            % A surface electrode will be assigned material type "gel" and
+            % always placed on the surface node closes to the specified
+            % center coordinate.
+            %
+            % An insert electrode can select one or more tissue types that
+            % it is inserted into, and those are by default assigned
+            % material type "conductor" (i.e., a needle inserted into skin)
+            arguments
+                o (1,1) EFMouse
+                pv.tag (1,1) string
+                pv.shape (1,1) string {mustBeMember(pv.shape,["circle" "rectangle"])}
+                pv.type (1,1) string  {mustBeMember(pv.type,["insert" "surface"])}
+                pv.radius (1,1) double = NaN
+                pv.current (1,1) double
+                pv.center (1,3) double
+                pv.width (1,1) double   = NaN
+                pv.length (1,1) double  = NaN
+                pv.thickness (1,1) double = NaN
+                pv.tissue (1,:) string = "skin"
+                pv.material (1,:) string = ""
+            end
+            % By default the electrode material is "conductor" for an
+            % insert electrode and "gel" for a surface electrode
+            if pv.material==""
+                switch (pv.type)
+                    case "insert"
+                        pv.material = repmat("conductor",[1 numel(pv.tissue)]);
+                    case "surface"
+                        pv.material = "gel";
+                end
+            end
+            assert(numel(pv.tissue)==numel(pv.material),"Specify material for each tissue type");
+            o.electrode(pv.tag) =pv; % Store
+        end
+
+        function addCraniotomy(o,pv)
+            % Craniotomies target a tissue (by default "skin" and "bone")
+            % and replace that with a new material (by default "air" and
+            % "csf").
+            % Unlike electrodes, craniotomies do not have a thickness; the
+            % surgeon removes the specified tissue type completely.
+            arguments
+                o (1,1) EFMouse
+                pv.tag (1,1) string
+                pv.shape (1,1) string {mustBeMember(pv.shape,["circle" "rectangle"])} = "circle"
+                pv.radius (1,1) double {mustBeNonnegative} = 1
+                pv.center (1,3) double
+                pv.width (1,1) double {mustBeNonnegative} = 1
+                pv.length (1,1) double  {mustBeNonnegative} = 1
+                pv.tissue (1,:) string = ["skin" "bone"];
+                pv.material (1,:) string = ["air" "csf"];
+            end
+            pv.type = "insert";
+            o.craniotomy(pv.tag) =pv;
+        end
+
+        function tets = findTets(o,shape,center,pv)
+            % Search for tetrahedra that are within some distance (box or
+            % radius) from a specified 3d coordinate (center). These
+            % indices can be passed to plotMesh for plotting an roi
+            %
+            % For a box:
+            % width dimension corresponds to the width of the mouse (left->right)
+            % length dimension corresponds to the length of the mouse (tail->head)
+            % thickness dimension corresponds to the height (belly->back)
+            %
+            arguments
+                o (1,1) EFMouse
+                shape ( 1,1) string {mustBeMember(shape,["box","radius"])}
+                center (1,3) double
+                pv.radius (1,1) double = NaN
+                pv.width(1,1) double  =  NaN
+                pv.length (1,1) double  = NaN
+                pv.thickness (1,1) double  = NaN
+            end
+
+            switch (shape)
+                case "radius"
+                    stay = vecnorm(o.mesh.centroid - center',2,1) < pv.radius;
+                case "box"
+                    stay = all(abs(o.mesh.centroid -center') < 0.5*[pv.width;pv.length;pv.thickness],1);
+            end
+            tets =  find(stay);
+        end
+
+        function v = labelToTissue(o,id)
+            % Given a tissue type id (a number), return its tissue label (
+            % a string)
+            arguments
+                o (1,1) EFMouse
+                id (1,:) double {mustBeInteger}
+            end
+            allIds = o.tissueLabel.values;
+            [tf,loc] = ismember(id,allIds);
+            v = repmat("Tissue not defined",size(id));
+            if any(tf)
+                allKeys= o.tissueLabel.keys;
+                v(tf) = string(allKeys(loc));
+            end
+        end
+
+        function v = tissueToLabel(o,name)
+            % Given a tissue name (a string) return its tissue ID (
+            % a number)
+            arguments
+                o (1,1) EFMouse
+                name (1,:) string
+            end
+            isAKey = isKey(o.tissueLabel,name);
+            v =NaN(size(name));
+            for i= find(isAKey)
+                v(i) = o.tissueLabel(name(i));
+            end
+
+        end
+
+        function  v = addTissue(o,name,material,label)
+            % Add a tissue type to the model and return the ID assigned to
+            % the type.
+            % name : The name of the tissue
+            % material:  the kind of material the tissue is made of. This
+            % should be one of the elements in the conductivityTable.
+            % value: A unique label (integer) that identifies this
+            % tissue in the mesh.
+            arguments
+                o (1,1) EFMouse
+                name (1,:) string
+                material (1,:) string % Material determines the conductivity
+                label (1,:) double {mustBePositive,mustBeInteger}=[]
+            end
+            if isempty(label)
+                label = o.tissueLabel.numEntries +(1:numel(name));
+            end
+            assert(numel(name)==numel(label),"The number of names should match the number of values ")
+            assert(all(ismember(material,o.conductivityTable.keys)),"Materials must be defined in the conductivityTable firs.");
+
+            alreadyDefined = isKey(o.tissueLabel,name);
+            % Add to the dictionary
+            o.tissueLabel(name(~alreadyDefined)) = label(~alreadyDefined);
+            v= tissueToLabel(o,name);
+            if isscalar(material)
+                material =repmat(material,[1 numel(name)]);
+            end
+            o.tissueMaterial(name) = material;
+        end
+
+        function [tf,ix] = meshHasTissue(o,nameOrId)
+            if isstring(nameOrId)
+                nameOrId = o.tissueToLabel(nameOrId);
+            end
+            ix = find(o.mesh.label == nameOrId);
+            tf = ~isempty(ix);
+        end
+
     end
 
     %% Visualization
@@ -397,10 +518,8 @@ classdef EFMouse < handle
             % define the colorbar
             colormap(cm);
             if ~strcmp(pv.type,'eMag') && ~strcmp(pv.type,'V')
-                %cmin = min(data);
-                %cmax = max(data);
                 % Ensure symmetric range
-                cmax = max(abs(clims(1)), abs(clims(2))); 
+                cmax = max(abs(clims(1)), abs(clims(2)));
                 cmin = -cmax;
                 clim([cmin cmax]);
             end
@@ -420,12 +539,11 @@ classdef EFMouse < handle
             yl.Position(1) = 4;
 
             %% Set other parameters of the 3D plot.
-
             % define title using the montage ID and the tissue
             plot_title = {o.ID + " -- " + pv.tissue,...
                 pv.type " < " +  string(num2str(pv.percentile)) + "th percentile"};
-            title(plot_title,FontSize=17);
-            % rotate for a transversal view (X(left-right)-Y(top-bottom)axes)
+            title(plot_title,FontSize=17,interpreter='none');
+            % rotate for a transverse view (X(left-right)-Y(top-bottom)axes)
             % once plotted, it can be rotated manually with the figure
             % Tools->Rotate 3D option
             view([0,90])
@@ -443,29 +561,28 @@ classdef EFMouse < handle
             % helps to navigate if manually rotating the image (Tools->Rotate 3D)
             % Adjust parameters so it can be properly visualized for this brain plot
             % If you do not want it, set pv.orientationQuiver to false
-            quiverHandle = findobj(gca, 'type', 'Quiver');
-            % Adjust the scale of the quiver plot to make it smaller
-            scaleFactor = 0.1;
-            set(quiverHandle, 'AutoScaleFactor', scaleFactor);
-            % x,y,zlim values can be used as reference to set the new values
-            newYData = quiverHandle.YData + 90;
-            newZData = quiverHandle.ZData + 40;
-            newXData = quiverHandle.XData + 47;
-            % Update the data of the quiver to move it to the new position
-            set(quiverHandle, 'YData', newYData,'ZData',newZData,'XData',newXData);
-            % modify line width
-            set(quiverHandle,'LineWidth', 1);
-            % modify arrowhead size
-            set(quiverHandle,'MaxHeadSize',0.3);
-            % add labels X,Y,Z to the red quiver
-            text(6, 20, 4, 'X'); % try "right"
-            text(3, 23.1, 4, 'Y'); %try "anterior"
-            text(3, 20, 6.9, 'Z'); % try "superior"
-
-            if ~pv.orientationQuiver
+            if pv.orientationQuiver
+                quiverHandle = findobj(gca, 'type', 'Quiver');
+                % Adjust the scale of the quiver plot to make it smaller
+                scaleFactor = 0.1;
+                set(quiverHandle, 'AutoScaleFactor', scaleFactor);
+                % x,y,zlim values can be used as reference to set the new values
+                newYData = quiverHandle.YData + 90;
+                newZData = quiverHandle.ZData + 40;
+                newXData = quiverHandle.XData + 47;
+                % Update the data of the quiver to move it to the new position
+                set(quiverHandle, 'YData', newYData,'ZData',newZData,'XData',newXData);
+                % modify line width
+                set(quiverHandle,'LineWidth', 1);
+                % modify arrowhead size
+                set(quiverHandle,'MaxHeadSize',0.3);
+                % add labels X,Y,Z to the red quiver
+                text(6, 20, 4, 'X'); % try "right"
+                text(3, 23.1, 4, 'Y'); %try "anterior"
+                text(3, 20, 6.9, 'Z'); % try "superior"
+            else
                 delete(findobj(gca,'type','Quiver'));
             end
-
             fprintf('----plotEf elapsed time: %.4f seconds\n', toc);
         end
 
@@ -476,51 +593,54 @@ classdef EFMouse < handle
             % To visualize other sections of the body the user can modify the
             % code or use the graphical display tools to zoom-out and navigate.
             % Color code:
-            %   Craniotomy:
-            %       skin removal plotted: Green
-            %       skull removal plotted: Yellow
+            %   Craniotomies use Cyan and Magenta to plot the different tissue
+            %   types that have been removed/relabeled.
             %   Electrodes with + current are plotted in Red
             %   Electrodes with - current are plotted in Blue
-            %   Roi plotted: Magenta
+            %   Roi plotted: Yellow
             %
             arguments
                 o (1,1) EFMouse
                 pv.xlim (1,2) double = [-4,6]
                 pv.ylim (1,2) double =  [19,37] %[23,45] %[19,37]
                 pv.zlim (1,2) double = [0,6]
-                pv.roi (1,:) double = []
+                pv.roi (1,:) double = []  % Tetrahedral elements;  use findTets
             end
 
             tic
             clf;
-            % Plot the soft tissue of the mesh
-            [tf,ix] = meshHasTissue(o,"gray");
+            hold on
+            % Plot the skiin tissue
+            [tf,ix] = meshHasTissue(o,"skin");
             if tf
-                % ix=ix(1:6:end);
                 pdeplot3D(o.mesh.node,o.mesh.elem(:,ix),'FaceColor','white','FaceAlpha',0.001);
-                hold on;
+                hold on
             end
 
-            % plot the craniotomy skin removal (if any)
-            [tf,ix] = meshHasTissue(o,"skinremoved");
-            if tf
-                pdeplot3D(o.mesh.node,o.mesh.elem(:,ix),'FaceColor','green','EdgeColor','green');
-                hold on;
+            % plot the craniotomies(if any) with cy colors
+            colors=  'cm';
+            for c = o.craniotomy.keys'
+                thisC = o.craniotomy(c);
+                tCntr = 0;
+                for t = thisC.tissue
+                    tCntr = tCntr+1;
+                    thisColor = colors(mod(tCntr-1,numel(colors))+1);
+                    [tf,ix] = meshHasTissue(o,thisC.tag +t);
+                    if tf
+                        pdeplot3D(o.mesh.node,o.mesh.elem(:,ix),'FaceColor',thisColor,'EdgeColor',thisColor);
+                        hold on
+                    end
+                end
             end
 
-            % plot the craniotomy skull removal (if any)
-            [tf,ix] = meshHasTissue(o,"craniotomy");
-            if tf
-                pdeplot3D(o.mesh.node,o.mesh.elem(:,ix),'FaceColor','yellow','EdgeColor','yellow');
-                hold on;
-            end
 
             % plot the electrodes (+ current: red) and (- current: blue)
-            for i = 1:o.num_electrodes
-                [tf,ix] = meshHasTissue(o,o.eTag(i));
+            for e = o.electrode.keys'
+                thisE = o.electrode(e);
+                [tf,ix] = meshHasTissue(o,thisE.tag);
                 if tf
-                    current = o.eCurrent(i);
-                    if current > 0 % positive current
+                    current = thisE.current;
+                    if current >= 0 % positive current
                         thisColor ='red';
                     elseif current < 0 % negative current
                         thisColor ='blue';
@@ -529,169 +649,55 @@ classdef EFMouse < handle
                     hold on;
                 end
             end
-            
+
             % plot the roi, when analyzing roi-level electric field
             if ~isempty(pv.roi)
-                pdeplot3D(o.mesh.node,o.mesh.elem(:,pv.roi),'FaceColor','magenta','EdgeColor','magenta');
+                pdeplot3D(o.mesh.node,o.mesh.elem(:,pv.roi),'FaceColor','y','EdgeColor','y');
                 hold on;
             end
 
             %% Parameters of the plot
-
-            % define title using the montage ID
-            %plot_title = o.ID;
-            %title(plot_title,FontSize=17);
-            % change the position of the title, it overlaps with the mouse head
-            %title_ax = get(gca,'Title');
-            %title_ax.Position = [8 45.1127 3.0000];
-
-            %if ~isempty(o.eTag)
-            %    % Beta: still thinking which is the best to display this info
-            %    % in a table? next to the electrodes?
-            %    % add the tags of the electrodes and the currents (code from chatGPT)
-            %    % TODO: confirm the units used in ROAST
-            %    list_electrode_tags = sprintf('%s\n', o.eTag(:));
-            %    text(12, 35, 3, list_electrode_tags, 'FontSize', 13, 'FontWeight', 'bold');
-            %    list_electrode_currents = sprintf('%.2f mA\n',o.eCurrent);
-            %    text(8, 35, 3, list_electrode_currents, 'FontSize', 13, 'FontWeight', 'bold');
-            %end
-            % rotate for a transversal view (X(left-right)-Y(anterior-posterior)axes)
+            % rotate for a transverse view (X(left-right)-Y(anterior-posterior)axes)
             % once plotted, the body can be rotated manually with Tools->Rotate 3D option
             view([0,90])
             % fix the position of the figure
             set(gcf,'Position',[440 348 582 449])
             % Set the limits for X,Y and Z axis to zoom in on the head.
-            % This forces the brain to stay inside this limits. Change as needed.
+            % This forces the brain to stay inside this limits.
             xlim(pv.xlim)
             ylim(pv.ylim)
             zlim(pv.zlim)
 
         end
     end
-
-    %% Functions to add or search for tissue types
-    methods (Access= public)
-        function v = labelToTissue(o,id)
-            % Given a tissue type id (a number), return its tissue label (
-            % a string)
-            arguments
-                o (1,1) EFMouse
-                id (1,:) double {mustBeInteger}
-            end
-            allIds = o.tissueLabel.values;
-            [tf,loc] = ismember(id,allIds);
-            v = repmat("Tissue not defined",size(id));
-            if any(tf)
-                allKeys= o.tissueLabel.keys;
-                v(tf) = string(allKeys(loc));
-            end
-        end
-        function v = tissueToLabel(o,name)
-            % Given a tissue name (a string) return its tissue ID (
-            % a number)
-            arguments
-                o (1,1) EFMouse
-                name (1,:) string
-            end
-            isAKey = isKey(o.tissueLabel,name);
-            v =NaN(size(name));
-            for i= find(isAKey)
-                v(i) = o.tissueLabel(name(i));
-            end
-
-        end
-        function  v = addTissue(o,name,material,label)
-            % Add a tissue type to the model and return the ID assigned to
-            % the type.
-            % name : The name of the tissue
-            % material:  the kind of material the tissue is made of. This
-            % should be one of the elements in the conductivityTable.
-            % value: A unique label (integer) that identifies this
-            % tissue in the mesh.
-            arguments
-                o (1,1) EFMouse
-                name (1,:) string
-                material (1,:) string % Material determines the conductivity
-                label (1,:) double {mustBePositive,mustBeInteger}=[]
-            end
-            if isempty(label)
-                label = o.tissueLabel.numEntries +(1:numel(name));
-            end
-            assert(numel(name)==numel(label),"The number of names should match the number of values ")
-
-            alreadyDefined = isKey(o.tissueLabel,name);
-            % Add to the dictionary
-            o.tissueLabel(name(~alreadyDefined)) = label(~alreadyDefined);
-            v= tissueToLabel(o,name);
-            if numel(material)==1
-                material =repmat(material,[1 numel(name)]);
-            end
-            o.tissueMaterial(name) = material;
-        end
-
-
-        function [tf,ix] = meshHasTissue(o,nameOrId)
-            if isstring(nameOrId)
-                nameOrId = o.tissueToLabel(nameOrId);
-            end
-            ix = find(o.mesh.label == nameOrId);
-            tf = ~isempty(ix);
-        end
-    end
-
-    %% Helper functions
-    methods (Access =protected)
-        function startLog(o)
-            if o.log
-                diary(file(o,"LOG"));
-            end
-        end
-
-        function stopLog(o)
-            if o.log
-                diary('off')
-            end
-        end
-        function clearLog(o)
-            if o.log && exist(file(o,"LOG"),"file")
-                del(file(o,"LOG"))
-            end
-        end
-        function [data,nodeNr] = readGetDp(o,pv)
-            % Read .pos files that contain the output of GetDP. The first
-            % number is the number of nodes, followed by nrNodes lines
-            % representing the node number (column 1) and then the data
-            % (e.g. 1 column for voltage , 3 columns for field).
-            %
-            % type: "V" for voltage, "E" for electric field.
-            arguments
-                o (1,1) EFMouse
-                pv.type (1,1) string {mustBeMember(pv.type,["V" "E"])}
-            end
-
-            fname = file(o,pv.type);
-            fid = fopen(fname);
-            tmp = fscanf(fid,'%f');
-            fclose(fid);
-            nrNodes= tmp(1);
-            data = reshape(tmp(2:end),[],nrNodes)';
-            nodeNr = data(:,1);
-            data(:,1)=[];
-        end
-
-    end
-
+   
     %% Core pipeline
     methods (Access=protected)
 
-
+        function validate(o)
+            % Sanity checks for electrodes and craniotomies. Called before
+            % computing the mesh.
+            es = o.electrode.values;
+            totalCurrent = sum([es.current]);
+            assert(totalCurrent==0,"The total current is %.1f; it should be zero",totalCurrent);
+            circles =[es.shape] == "circle";
+            assert(all(~isnan([es(circles).radius])),"Circle electrodes must define a radius");
+            rects =[es.shape] == "rectangle";
+            assert(all(~isnan([es(rects).width]) & ~isnan([es(rects).length] ) & ~isnan([es(rects).thickness] )),"Rectangle electrodes must define a width and length");
+            cs = o.craniotomy.values;
+            if ~isempty(cs)
+                circles =[cs.shape] == "circle";
+                assert(all(~isnan([cs(circles).radius])),"Circle craniotomies must define a radius");
+                rects =[cs.shape] == "rectangle";
+                assert(all(~isnan([cs(rects).width]) & ~isnan([cs(rects).length] )),"Rectangle craniotomies must define a width and length");
+            end
+        end
 
         function saveMesh(o)
             % SAVEMESH saves the mesh in *.msh format. This is the
             % file used by the electric field modeling GetDP solver.
 
             % Uses code from ROAST
-
             % start logging
             o.startLog
             tic
@@ -720,7 +726,12 @@ classdef EFMouse < handle
 
             % Write the boundary triangles - [2 2] means "triangle" and "2
             % tags"  (in our case both tags are the same; the label)
-            buffer = [nrTetrahedra+(1:nrBoundary)' repmat([2 2],nrBoundary,1) repmat(o.mesh.boundaryLabel',[1 2]) o.mesh.boundary']';
+            % To get unique labels for the boundaries/faces (separate from the
+            % tissues/tetrathedra), have to offset the boundary labels.
+            % This matches what is done in savePro for the .pro file.
+            boundaryLabelOffset = o.tissueLabel.numEntries;
+            bLbl = o.mesh.boundaryLabel + boundaryLabelOffset;
+            buffer = [nrTetrahedra+(1:nrBoundary)' repmat([2 2],nrBoundary,1) repmat(bLbl',[1 2]) o.mesh.boundary']';
             fmt = [repmat('%d ',[1 8] ) '\n'];
             fprintf (fid, fmt, buffer);
             fprintf (fid, '$EndElements\n');
@@ -737,7 +748,7 @@ classdef EFMouse < handle
             o.startLog
             tic
             fprintf('----Starting savePro...%s\n',datetime('now'));
-            
+
             % Define file names for function output
             % a text file that will contain input parameters for the FEM solver
             proFile = file(o,"PRO");
@@ -749,37 +760,36 @@ classdef EFMouse < handle
             % same as above, no need to include the path
             output_e = file(o,"E");
 
-            %%
-            % assign these variables names to keep ROAST convention
-            % extract the name of the electrodes
-            % TODO use electrode names  elecName = o.eTags';
 
             fid = fopen(proFile,'w');
             fprintf(fid,'/* \n .pro file created by EFMouse on %s \n ID: %s \n Dir: %s \n */\n\n',datetime("now"),o.ID,o.dir);
             %% Define the tissues (Region) in GetDP format
             fprintf(fid,'Group {\n\n');
-            tissues= o.tissueLabel.keys;
-            tissuesWithoutBoundaries= tissues(~startsWith(tissues,'boundary'));
-            nrTissWithoutBoundaries= numel(tissuesWithoutBoundaries);
-            nrTiss = numel(tissues);
-            for k= 1:nrTiss
-                fprintf(fid,'%s = Region[%d];\n', tissues{k},o.tissueToLabel(tissues{k}));
+            for k= o.tissueLabel.keys'
+                fprintf(fid,'%s = Region[%d];\n', k,o.tissueToLabel(k));
             end
+            boundaryLabelOffset = o.tissueLabel.numEntries;
+            for k= o.boundaryLabel.keys'
+                fprintf(fid,'%s = Region[%d];\n', "boundary"+ k,o.boundaryLabel(k)+boundaryLabelOffset);
+            end
+
             fprintf(fid,'DomainC = Region[{');
-            fprintf(fid,'%s',strjoin(tissuesWithoutBoundaries,','));
+            fprintf(fid,'%s',strjoin(o.tissueLabel.keys',','));
             fprintf(fid,'}];\n');
 
             fprintf(fid,'AllDomain = Region[{');
-            fprintf(fid,'%s',strjoin(tissues,','));
+            fprintf(fid,'%s',strjoin(o.tissueLabel.keys',','));
+            bLbls = "boundary" + o.boundaryLabel.keys;
+            fprintf(fid,',%s',strjoin(bLbls,','));
             fprintf(fid,'}];\n}\n\n');
             %% Define conductivities for each of the regions
             fprintf(fid,'Function {\n\n');
-            for k= 1:nrTissWithoutBoundaries
-                fprintf(fid,'sigma[%s] = %g;\n',tissuesWithoutBoundaries{k},o.conductivityTable(o.tissueMaterial(tissuesWithoutBoundaries{k})));
+            for k= o.tissueLabel.keys'
+                fprintf(fid,'sigma[%s] = %g;\n',k,o.conductivityTable(o.tissueMaterial(k)));
             end
             %% Define the currents for the electrode surfaces (boundary elements)
-            for i=1:o.num_electrodes
-                fprintf(fid,'du_dn%d[] = %f;\n',i,1000*o.eCurrent(i)/o.eArea(i));
+            for e=o.electrode.keys'
+                fprintf(fid,'du_dn%s[] = %f;\n',e,1000*o.electrode(e).current/o.electrode(e).area);
             end
             fprintf(fid,'}\n\n');
 
@@ -830,8 +840,8 @@ classdef EFMouse < handle
             fprintf(fid,'      Galerkin { [ sigma[] * Dof{d v} , {d v} ]; In DomainC; \n');
             fprintf(fid,'      Jacobian Vol; Integration GradGrad; }\n');
             % Currents.
-            for i=1:o.num_electrodes
-                fprintf(fid,'      Galerkin{ [ -du_dn%d[], {v} ]; In %s ;',i,"boundary"+ o.eTag(i));
+            for e=o.electrode.keys'
+                fprintf(fid,'      Galerkin{ [ -du_dn%s[], {v} ]; In %s ;',e,"boundary"+ o.electrode(e).tag);
                 fprintf(fid,'                 Jacobian Sur; Integration GradGrad;}\n');
             end
 
@@ -884,98 +894,128 @@ classdef EFMouse < handle
 
 
         function computeMesh(o,pv)
-            % COMPUTEMESH creates a user-defined stimulation electrodes and 
+            % COMPUTEMESH creates a user-defined stimulation electrodes and
             % craniotomy on mesh space.
             %
             % show: show the resulting mesh
+            % maxDepth : For rectangular craniotomies/electrodes we have to
+            % limit the search for nodes inside a box by some "depth" to
+            % avoid finding nodes on the other side of the mouse. Unless
+            % the surface where the box is placed is very curved, 1 mm
+            % should be enough to find the relevant elements. Increase
+            % pv.maxDepth if the edges of the rect seem cut off.
             arguments
                 o (1,1) EFMouse
                 pv.show = false;
+                pv.maxDepth = 1;
             end
 
             o.startLog;
             disp(o)
 
-            % create a pde model using the mesh, this allows us to use the
-            % Matlab functions that create the electrodes and the craniotomy
-            o.model = createpde();
-            geometryFromMesh(o.model,o.mesh.node,o.mesh.elem,o.mesh.label);
+            % Turn off the warning about points outside the bounds of a triangulation.
+            warnStt =warning('query');
+            warning('off','MATLAB:triangulation:PtsNotInTriWarnId');
+            fprintf('-Meshing %d electrodes-\n',o.num_electrodes);
+            for e = o.electrode.keys'
+                thisE = o.electrode(e);
+                switch (thisE.type)
+                    case 'insert'
+                        electrodeFace = insert(o,thisE,isElectrode =true);
+                    case 'surface'
+                        % Electrode placed on top of the mouse
+                        % Find the surface nodes that are touching the electrode
+                        % (ie. within some distance from the target location).
+                        surfaceIx = unique(o.mesh.surface.face(:));       % indices into 'nodes'
+                        surfaceNode = o.mesh.node(:,surfaceIx);
+                        distance = vecnorm(surfaceNode - thisE.center', 2, 1);
+                        [minDistance,closestSurfaceNodeIx] = min(distance);
+                        fprintf('Closest skin node is %.1f away from the electrode target position.\n',minDistance);
+                        dXYZ = surfaceNode - surfaceNode(:,closestSurfaceNodeIx);
+                        switch thisE.shape
+                            case 'circle'
+                                hasContact = vecnorm(dXYZ, 2, 1) <= thisE.radius;
+                            case 'rectangle'
+                                hasContact = all(abs(dXYZ) < [thisE.length thisE.width pv.maxDepth]',2);
+                            otherwise
+                                error('NIY')
+                        end
+                        if ~any(hasContact)
+                            error('No surface nodes with %.1f from the target position. Try increasing the electrode size?\n',thisE.radius);
+                        end
+                        % Initial definition is an element that has contact
+                        contactElem = surfaceIx(hasContact);
+                        % Include a face if at least one element has
+                        % contact (this can change the contact elements)
+                        isContactFaceElem = ismember(o.mesh.surface.face(1,closestSurfaceNodeIx),contactElem) | ismember(o.mesh.surface.face(2,:),contactElem) | ismember(o.mesh.surface.face(3,:),contactElem);
+                        contactFaceElem = o.mesh.surface.face(:,isContactFaceElem);
+                        contactElem  = unique(contactFaceElem); % Potentially add some new elems
+                        nrContactElem = numel(contactElem);
+                        contactNode = o.mesh.node(:,contactElem);
+                        vertexNormal = outwardVertexNormals(o,contactFaceElem);
+                        vertexNormal = vertexNormal(contactElem,:);
 
 
-            %% If defined, create the craniotomy: we are just modeling one craniotomy
-            % craniotomy may or may not be defined, depending on the experiment
-            % simulated.
-            % Check if craniotomy information is available
-            if o.has_craniotomy
-                % do craniotomy and skin removal if information is available
-                craniotomy = findElements(o.model.Mesh,'radius',...
-                    o.cCenter,...
-                    o.cRadius);
-                % Check the craniotomy includes bone(skull) and skin.
-                % We do not care if it touches grey matter (1) or CSF (2),
-                % since we will not modify those labels.
-                tissue_touched = unique(o.mesh.label(craniotomy));
-                fprintf('-Creating craniotomy-\n')
-                fprintf(' Craniotomy: touching tissue:\n');
-                for t = 1:numel(tissue_touched)
-                    tiss = tissue_touched(t);
-                    elem_tiss_touched = sum(o.mesh.label(craniotomy) == tiss);
-                    fprintf('   %s: num elements = %d\n', o.labelToTissue(tiss),elem_tiss_touched);
+                        %Extrude each contact node along its own normal
+                        topNodes = contactNode + thisE.thickness * vertexNormal';
+                        electrodeNode = [contactNode topNodes];
+                        % Triangulate
+                        TR = delaunayTriangulation(electrodeNode');
+                        % This TR should maintain the ordering of the elements
+                        % This is key for the relabeling in the mouse mesh,
+                        % so let's make sure
+                        [tf,loc] = ismember(contactNode',TR.Points,'rows');
+                        assert(all(tf)&& all(diff(loc)==1),'Triangulation error!!');
+
+                        %% Identify the faces that form the top of the gel
+                        electrodeFace = freeBoundary(TR);
+                        topElem = nrContactElem + (1:nrContactElem); % These will be the elem numbers of the top surface
+                        topFace  = sum(ismember(electrodeFace,topElem),2)==3;
+                        electrodeFace = electrodeFace(topFace,:);
+
+
+                        %% Combine with mouse mesh
+                        offset = size(o.mesh.node,2);
+                        % Add the top nodes
+                        o.mesh.node = [o.mesh.node  topNodes];
+                        % Relabel the elem to match the elems of the entire
+                        % mesh
+                        electrodeElem = TR.ConnectivityList + offset -nrContactElem;
+                        tmpElectrodeFace = electrodeFace + offset - nrContactElem;
+                        % Correct the contact elems (which were already in
+                        % the mesh)
+                        for ce=1:nrContactElem
+                            electrodeElem(TR.ConnectivityList == ce) = contactElem(ce);
+                            tmpElectrodeFace(electrodeFace==ce) = contactElem(ce);
+                        end
+                        electrodeFace = tmpElectrodeFace;
+                        o.mesh.elem = [o.mesh.elem electrodeElem'];
+                        thisId = o.addTissue(thisE.tag, "gel");% Add electrode labels at the end of the "tissue" list.
+                        nrElements = size(electrodeElem,1);
+                        o.mesh.label = [o.mesh.label thisId*ones(1,nrElements)];
+
+                        updateModel(o); % Mesh changed- update
+
+                    otherwise
+                        error('Unknown electrode type %s',thisE.type)
                 end
-                % Skin removal modeling:
-                % Change skin label on craniotomy to label (skinremoved)
-                thisId = addTissue(o,"skinremoved","air");
-                change = craniotomy(o.mesh.label(craniotomy)==o.tissueToLabel("skin"));
-                o.mesh.label(change) = thisId;
-                % Skull removal modeling:
-                % Change skull/bone label on craniotomy to label
-                % then assign conductivity of CSF.
-                thisId = addTissue(o,"craniotomy","csf");
-                change = craniotomy(o.mesh.label(craniotomy)==o.tissueToLabel('bone'));
-                o.mesh.label(change) = thisId;
-                fprintf(' Craniotomy only removes skin and bone.\n')
+
+                %% Add electrode boundaries
+                thisBoundaryLabel = o.addBoundary(thisE.tag);
+                o.mesh.boundary = [o.mesh.boundary electrodeFace'];
+                o.mesh.boundaryLabel = [o.mesh.boundaryLabel repmat(thisBoundaryLabel,[1  size(electrodeFace,1)])];
+                % calculate the electrode surface area as a sanity check
+                % and for reporting
+                a = (o.mesh.node(:,electrodeFace(:, 2)) - o.mesh.node(:,electrodeFace(:, 1)));
+                b =(o.mesh.node(:,electrodeFace(:, 3)) - o.mesh.node(:,electrodeFace(:, 1)));
+                c = cross(a', b', 2);
+                o.electrode(e).area = sum(0.5*vecnorm(c,2,2));
             end
 
-            %% define the n electrodes
-            o.eTissue=nan(1,o.num_electrodes); % Tisse type that was used to create the electrodes.
-            fprintf('-Creating %d electrodes-\n',o.num_electrodes);
-            for i = 1:o.num_electrodes
-                % build the electrode by creating a sphere with user-input center
-                % and radius.
-                % https://www.mathworks.com/help/pde/ug/pde.femesh.findelements.html
-                % ("electrode" contains the mesh elements comprising the electrode.)
-                electrode = findElements(o.model.Mesh,'radius',...
-                    o.eCenter(:,i),...
-                    o.eRadius(i));
-
-                % the assigned electrode label in the mesh
-                thisId = o.addTissue(o.eTag(i), "conductor");% Add electrode labels at the end of the "tissue" list.
-
-                % Type of tissue "touched" by the electrode:
-                % this is a way to assess if our electrode is in the tissue we want
-                % if not, we need to modify center and radius.
-                tissue_touched = unique(o.mesh.label(electrode));
-                elem_tiss_touched  = zeros(1,numel(tissue_touched));
-
-                fprintf(' Electrode: %s: touching tissue:\n',o.eTag(i));
-                for t = 1:numel(tissue_touched)
-                    tiss = tissue_touched(t);
-                    elem_tiss_touched(1,t) = sum(o.mesh.label(electrode) == tiss);
-                    fprintf('   %s: num elements = %d\n', o.labelToTissue(tiss),elem_tiss_touched(1,t));
-                    % change the tissue labels of the elements to the new electrode tag
-                end
-                % create electrode only in the max touched tissue
-                [~,idx] = max(elem_tiss_touched);
-                tiss_elec = tissue_touched(idx);
-                fprintf('   Creating electrode %s in max touched tissue: %s.\n',o.eTag(i),o.labelToTissue(tiss_elec))
-                change = electrode(o.mesh.label(electrode)==tiss_elec);
-                o.mesh.label(change) = thisId;
-                % Save the tissue where the electrode was inserted, this will be used
-                % by computeBoundary to define the boundary conditions.
-                o.eTissue(i) = tiss_elec;
+            %% If defined, create the craniotomies
+            for c = o.craniotomy.keys'
+                insert(o,o.craniotomy(c));
             end
-
-            o.stage = 1;
 
             if pv.show
                 % visualize the resulting mesh
@@ -986,66 +1026,14 @@ classdef EFMouse < handle
             end
 
             % stop logging
+            o.stage = Stage.MESH;
             o.stopLog;
-          
-        end
-
-
-        function computeBoundary(o)
-            % COMPUTEBOUNDARY computes electrode areas and sets boundary conditions for
-            % the mesh. Based on the ROAST function prepareForGetDP.m
-
-            o.startLog
-            % preallocate
-            o.eArea= zeros(o.num_electrodes,1);
-            %%
-            % turn off the warning
-            % for when points are provided outside the bounds of a triangulation.
-            warnStt =warning('query');
-            warning('off','MATLAB:TriRep:PtsNotInTriWarnId');
-            %Clean the boundary element in the mesh
-            o.mesh.boundary = [];
-            o.mesh.boundaryLabel = [];
-            % loop through each electrode
-            for i = 1:o.num_electrodes
-                % Find electrode nodes and nodes with the same tissue type
-                [~,indNode_elecElm] = o.meshHasTissue(o.eTag(i));
-                [~,indNode_tissElm] = o.meshHasTissue(o.eTissue(i)); % get the tissue where the electrode was inserted in computeMesh
-                % Error if the electrode does not have any nodes
-                assert(~isempty(indNode_elecElm),sprintf('Electrode %d was not meshed properly. Reasons may be: 1) electrode size is too small so the mesher cannot capture it; 2) mesh resolution is not high enough. Consider using bigger electrodes or increasing the mesh resolution by specifying the mesh options.',i));
-
-                % In our mouse model no gel is used.
-                % instead of gel as in ROAST, use the tissue where the electrode was
-                % inserted to setup the boundary conditions
-
-                [~,verts_tiss] = freeBoundary(TriRep(o.mesh.elem(:,indNode_tissElm)',o.mesh.node'));
-                [faces_elec,verts_elec] = freeBoundary(TriRep(o.mesh.elem(:,indNode_elecElm)',o.mesh.node'));
-
-                % Find the faces between the electrode and the surrounding tissue
-                [~,iE,~] = intersect(verts_elec,verts_tiss,'rows');
-                tempTag = ismember(faces_elec,iE);
-                faces_elecOuter = faces_elec(~(sum(tempTag,2)==3),:);
-                [~,Loc] = ismember(verts_elec,o.mesh.node','rows');
-                boundaryElements = Loc(faces_elecOuter);
-                % calculate the surface area
-                a = (verts_elec(faces_elecOuter(:, 2),:) - verts_elec(faces_elecOuter(:, 1),:));
-                b = (verts_elec(faces_elecOuter(:, 3),:) - verts_elec(faces_elecOuter(:, 1),:));
-                c = cross(a, b, 2);
-                o.eArea(i) = sum(0.5*sqrt(sum(c.^2, 2)));
-                assert(o.eArea(i) > 0,'Error: electrode %d area needs to be > 0. Make the radius of the electrode larger and try again.',i);
-
-                thisLabel  = o.addTissue("boundary" + o.eTag(i),"boundary");
-                o.mesh.boundary = [o.mesh.boundary boundaryElements'];
-                o.mesh.boundaryLabel = [o.mesh.boundaryLabel repmat(thisLabel,[1  size(boundaryElements,1)])];
-            end
-            o.stage = 2; % This completes stage 2.
-            
-            % Print the electrode boundary sizes
-            T= table(o.eArea', 'RowNames',cellstr(o.eTag)','VariableNames',{'Electrode Area'});
-            disp(T)
-            o.stopLog
             warning(warnStt);
+
         end
+
+
+
 
         function computeField(o,pv)
             % solve solves the electric field model using GetDP. This is an
@@ -1078,7 +1066,7 @@ classdef EFMouse < handle
             o.field = readGetDp(o,type="E");
             o.voltage = readGetDp(o,type="V");
             o.stopLog
-            o.stage = 4;
+            o.stage = Stage.GETDP;
             if pv.show
                 plotEf(o)
             end
@@ -1163,7 +1151,7 @@ classdef EFMouse < handle
                     fname = file(o,"EMAGNII");
 
                 else
-                    thisE = ef(:,:,:,dim); 
+                    thisE = ef(:,:,:,dim);
                     fname = file(o,"E" + char('X'+dim-1) + "NII");
                 end
                 fname = strrep(fname,'.nii','_unaligned.nii');
@@ -1180,36 +1168,266 @@ classdef EFMouse < handle
             end
             fprintf('----computeVoxelSpace elapsed time: %.4f seconds\n', toc);
             o.stopLog
-            o.stage =5;
+            o.stage =Stage.ATLAS;
         end
+
+        function updateModel(o)
+            % Computations that are somewhat time consuming and need to be
+            % done when the mesh changes.
+
+            %% Centroids of the tets
+            v1 = o.mesh.node(:,o.mesh.elem(1,:));
+            v2 = o.mesh.node(:,o.mesh.elem(2,:));
+            v3 = o.mesh.node(:,o.mesh.elem(3,:));
+            v4 = o.mesh.node(:,o.mesh.elem(4,:));
+            o.mesh.centroid = (v1 + v2 + v3 + v4) / 4;
+
+            %% List of tets on the surface
+            TR = triangulation(o.mesh.elem', o.mesh.node');
+            surfaceFace = freeBoundary(TR);                % P×3 array of surface triangles
+            nrTetrahedra    = size(o.mesh.elem,2);
+            allFaces      = [   o.mesh.elem([1 2 3],:), ...
+                o.mesh.elem([1 2 4],:), ...
+                o.mesh.elem([1 3 4],:),...
+                o.mesh.elem([2 3 4],:)]';
+            tetIdx        = repmat((1:nrTetrahedra), 1,4);
+            allFaces    = sort(allFaces, 2); %#ok<UDIM>
+            surfaceFaceElem = sort(surfaceFace, 2);
+
+            [lia, loc]    = ismember(surfaceFaceElem, allFaces, 'rows');
+            if any(~lia)  || numel(unique(loc))~=sum(lia)
+                error('Mismatch between tetrahedra and boundary faces?');
+            end
+            o.mesh.surface.face = surfaceFaceElem'; % The surface faces (index into node)
+            o.mesh.surface.tet  = tetIdx(loc);     % the surface tets (index into .elem)
+
+        end
+
+        function face = insert(o,thing,pv)
+            arguments
+                o (1,1) EFMouse
+                thing (1,1) struct
+                pv.maxDepth (1,1) double =  1
+                pv.isElectrode (1,1) logical = false
+            end
+
+            %% Determine which tets are candidates for the thing.
+            nrTetrahedra    = size(o.mesh.elem,2);
+            % Select on tissue type (if specified)
+            if ~isfield(thing,'tissue')
+                % Any tissue
+                candidateTet = 1:nrTetrahedra;
+            else
+                candidateTet = [];
+                for tiss = thing.tissue
+                    candidateTet = [candidateTet find(o.mesh.label==o.tissueLabel(tiss))]; %#ok<AGROW>
+                end
+            end
+            % Select on surface or any
+            if strcmpi(thing.type,'surface')
+                candidateTet =intersect(candidateTet,o.mesh.surface.tet);
+                surfaceString = " surface";
+            else
+                surfaceString = "";
+            end
+
+            %% Find the tet closest to the target
+            distance = vecnorm(o.mesh.centroid(:,candidateTet)'- thing.center, 2, 2);
+            [minDistance,ix] = min(distance);
+            targetTet = candidateTet(ix);
+
+            fprintf('Found %s tet #%d at a distance of %.2f from the target (label : %s)\n',surfaceString,targetTet,minDistance,labelToTissue(o,o.mesh.label(targetTet)))
+
+            %% Reduce the search space from the entire mesh
+            switch thing.shape
+                case 'circle'
+                    searchRadius = 1.1*thing.radius;
+                case 'rectangle'
+                    searchRadius  =1.1*vecnorm([thing.length thing.width pv.maxDepth],2,2);
+            end
+            candidateTet = findTets(o,'radius',...
+                o.mesh.centroid(:,targetTet),...
+                radius=searchRadius);
+            nrCandidateTet = numel(candidateTet);
+            startIx = candidateTet==targetTet;
+
+            % Step 2: Build face-to-element map
+            faceMap = containers.Map('KeyType','char','ValueType','any');
+            for i = 1:nrCandidateTet
+                tet = o.mesh.elem(:, candidateTet(i));
+                faces = [
+                    sort(tet([1 2 3]))';
+                    sort(tet([1 2 4]))';
+                    sort(tet([1 3 4]))';
+                    sort(tet([2 3 4]))'
+                    ];
+                for j = 1:4
+                    key = sprintf('%d_%d_%d', faces(j, :));
+                    if isKey(faceMap, key)
+                        faceMap(key) = [faceMap(key) i];
+                    else
+                        faceMap(key) = i;
+                    end
+                end
+            end
+
+            % Step 3: Build adjacency list
+            adjacency = cell(1, nrCandidateTet);
+            for faceKeys = keys(faceMap)
+                tetList = faceMap(faceKeys{1});
+                if numel(tetList) == 2
+                    a = tetList(1); b = tetList(2);
+                    adjacency{a}(end+1) = b;
+                    adjacency{b}(end+1) = a;
+                end
+            end
+
+            % Step 4: DFS with radius and label constraint
+            globalVisited = false(1, nrTetrahedra);
+            stack = candidateTet(startIx);
+            connectedTet = [];
+            refLabel =tissueToLabel(o,thing.tissue);
+            while ~isempty(stack)
+                currentGlobalTet = stack(end);
+                stack(end) = [];
+                if ~globalVisited(currentGlobalTet)
+                    globalVisited(currentGlobalTet) = true;
+
+                    if ismember(o.mesh.label(currentGlobalTet), refLabel)
+                        dXYZ = o.mesh.centroid(:,currentGlobalTet)'- thing.center;
+                        switch thing.shape
+                            case 'circle'
+                                ok = vecnorm(dXYZ, 2, 2)< thing.radius;
+                            case 'rectangle'
+                                ok  = all(abs(dXYZ) < 0.5*[thing.length,thing.width,pv.maxDepth]);
+                        end
+                        if ~ok;continue;end
+                        connectedTet(end+1) = currentGlobalTet; %#ok<AGROW>
+
+                        localIdx = find(candidateTet == currentGlobalTet);
+                        if isempty(localIdx), continue; end
+                        neighbors = adjacency{localIdx};
+
+                        for n = neighbors
+                            neighborGlobalTet = candidateTet(n);
+                            if ~globalVisited(neighborGlobalTet)
+                                stack(end+1) = neighborGlobalTet; %#ok<AGROW>
+                            end
+                        end
+                    end
+                end
+            end
+
+            insertTet = [];
+            for t= 1:numel(thing.tissue)
+                %Remove one tissue type and assign it a new material property
+                remove = thing.tissue(t);
+                material = thing.material(t);
+                fprintf('Replacing %s with %s \n',remove,material)
+                if pv.isElectrode
+                    newTissueName = thing.tag;
+                else
+                    newTissueName = thing.tag + remove;
+                end
+                thisId = addTissue(o,newTissueName,material);
+                changeTet = connectedTet(o.mesh.label(connectedTet)==o.tissueToLabel(remove));
+                o.mesh.label(changeTet) = thisId;
+                insertTet = [insertTet changeTet]; %#ok<AGROW>
+            end
+
+            if nargout >0
+                removedTissueElm =[];
+                for tiss= thing.tissue
+                    [~,thisElm] = o.meshHasTissue(tiss);
+                    removedTissueElm = [removedTissueElm thisElm]; %#ok<AGROW>
+                end
+                tissueFace = freeBoundary(triangulation(o.mesh.elem(:,removedTissueElm)',o.mesh.node'));
+                insertFace = freeBoundary(triangulation(o.mesh.elem(:,insertTet)',o.mesh.node'));
+                touching = ismember(sort(insertFace,2),sort(tissueFace,2),'rows');
+                % The boundary is the part that is not touching the tissue.
+                face = insertFace(~touching,:);
+            end
+        end
+
     end
-
-
-
 
     %% Analysis functions
     methods (Access = public)
+        function v= file(o,tag)
+            % Various files are saved and loaded by different functions, to
+            % ensure consistent naming, the filenames are all created here.
+            arguments
+                o (1,1) EFMouse
+                tag (1,1) string {mustBeMember(tag,["OBJECT" "LOG" "E" "V" "TRANS" "DIGIMOUSE" "MESH" "PRO" ...
+                    "GETDP" "EMAGNII" "EXNII" "EYNII" "EZNII" ...
+                    "ALLEN" "ALLENLABELS"])}
+            end
+            installDir = fileparts(mfilename("fullpath"));
+            switch tag
+                case "OBJECT"
+                    v = fullfile(o.dir,o.ID + ".mat");
+                case "LOG"
+                    v = fullfile(o.dir,o.ID + "_logfile.txt");
+                case "E"
+                    v = fullfile(o.dir,o.ID + "_e.pos");
+                case "V"
+                    v = fullfile(o.dir,o.ID + "_v.pos");
+                case "TRANS"
+                    v = fullfile(installDir,"aux_files","transMatrix_ef2Digimouse.mat");
+                case "DIGIMOUSE"
+                    v = fullfile(installDir,"aux_files","EFMouse_digimouseAtlas.nii.gz");
+                case "MESH"
+                    v = fullfile(o.dir,o.ID+ ".msh");
+                case "PRO"
+                    v = fullfile(o.dir,o.ID+ ".pro");
+                case "GETDP"
+                    % Run getDP
+                    str = computer('arch');
+                    switch str
+                        case 'win64'
+                            exe = "getdp.exe";
+                        case 'glnxa64'
+                            exe = "getdp";
+                        case 'maci64'
+                            exe = "getdpMac";
+                        otherwise
+                            error('Unsupported operating system!');
+                    end
+                    v = fullfile(installDir,"lib","getdp-3.2.0","bin", exe);
+                case "EMAGNII"
+                    v = fullfile(o.dir,o.ID + "_efm.nii.gz");
+                case "EXNII"
+                    v = fullfile(o.dir,o.ID + "_efX.nii.gz");
+                case "EYNII"
+                    v = fullfile(o.dir,o.ID + "_efY.nii.gz");
+                case "EZNII"
+                    v = fullfile(o.dir,o.ID + "_efZ.nii.gz");
+                case "ALLEN"
+                    v = fullfile(installDir,"aux_files","EFMouse_allenAtlas.nii.gz");
+                case "ALLENLABELS"
+                    v = fullfile(installDir,"aux_files","allenAtlas_labels.mat");
+                otherwise
+                    % cannot happen
+            end
+        end
 
-        function analyzeTissue(o)
+        function analyzeTissue(o,tissueType)
             % ANALYZETISSUE reports electric field (EF) x,y,z components and
             % magnitude summary statistics (mean, median, std.dev, min, max)
             % for all tissues in the Digimouse.
             arguments
                 o (1,1) EFMouse
+                tissueType (1,:) string = o.tissueLabel.keys'; % By default show all types
             end
             tic
             fprintf('----Starting analyzeTissue...%s\n',datetime('now'));
             %% Read the results
             ef = o.readGetDp(type ="E");
-            keyDic = keys(o.tissueLabel);
-            n_tissue = 5;
-            if o.has_craniotomy
-                n_tissue = n_tissue + 2;
-            end
-            for i = 1:n_tissue
+            
+            for tissue = tissueType
                 % Select only the corresponding tissue type
-                tissue = keyDic(i);
-                tissue_node_idx= unique(o.mesh.elem(:,ismember(o.mesh.label,o.tissueToLabel(tissue))));
+                label = o.tissueLabel(tissue);
+                tissue_node_idx= unique(o.mesh.elem(:,o.mesh.label==label));
                 ef_tissue = ef(tissue_node_idx,:);
                 S = EFMouse.summary(ef_tissue);
                 fprintf('Electric field summary statistics for %s tissue\n',tissue);
@@ -1231,19 +1449,22 @@ classdef EFMouse < handle
             % It also computes a focality measure relative to the given roi
             %   IN: o: the model
             %       roi: a structure with information about the roi. See below. Needs
-            %       to be created before running this function. A spherical and a
+            %       to be created before running this function. A radius and a
             %       box-shaped option.
             %   OUT: a summary table (Matlab table object).
             %        a mesh figure showing the roi in the mouse brain.
             %        (including electrodes and craniotomy as reference.)
             %
-            % eg1.  roi.shape = 'spherical';
+            % eg1.  roi.shape = 'radius';
             %       roi.center = [-1.8276,28.7571,3.30];
             %       roi.radius = 2;
             %       summary_table = analyzeRoi(o,roi);
             %
             % eg2.  roi.shape = 'box';
-            %       roi.dim = [[-2.77 -1.29];[27.55 29.64];[3.68 4.68]]'
+            %       roi.center = [ -2 27 4]
+            %       roi.width = 2
+            %       roi.length = 3
+            %       roi.thickness = 1
             %       summary_table = analyzeRoi(o,roi);
             arguments
                 o (1,1) EFMouse
@@ -1256,11 +1477,10 @@ classdef EFMouse < handle
 
             tic
             fprintf('----Starting analyzeRoi...%s\n',datetime('now'));
-
-            if strcmp(roi.shape,'spherical')
-                roi_idx = findElements(o.model.Mesh,'radius',roi.center,roi.radius);
+            if strcmp(roi.shape,'radius')
+                roi_idx = findTets(o,'radius',roi.center,radius=roi.radius);
             elseif strcmp(roi.shape,'box')
-                roi_idx = findElements(o.model.Mesh,'box',roi.dim(:,1),roi.dim(:,2),roi.dim(:,3));
+                roi_idx = findTets(o,'box',roi.center,width =roi.width, length=roi.length,thickness=roi.thickness);
             end
             fprintf('Electric field summary statistics for a %s roi in %s\n',roi.shape,pv.tissue);
 
@@ -1268,7 +1488,7 @@ classdef EFMouse < handle
             ef = o.readGetDp(type ="E");
             % Select only the requested tissue type
             roi_idx = roi_idx(ismember(o.mesh.label(roi_idx),o.tissueToLabel(pv.tissue)));
-            % these roi_idx are tetrahedra elements, need to get 
+            % these roi_idx are tetrahedra elements, need to get
             % the corresponding nodes
             roi_node_idx = unique(o.mesh.elem(:,roi_idx));
             % extract the corresponding electric field information
@@ -1299,7 +1519,7 @@ classdef EFMouse < handle
             % magnitude summary statistics (mean, median, std.dev, min, max) for a
             % chosen hemisphere and Allen atlas area of interest.
             % Requires the NIfTI files output by computeVoxelSpace
-            % (stage 5 of the compute pipeline)
+            % (stage 4 of the compute pipeline)
             %   IN: o - the EFMouse object
             %       hemisphere: a string "left", "right" or "both".
             %       area: a vector of strings representing Allen atlas areas
@@ -1372,25 +1592,25 @@ classdef EFMouse < handle
             efM= efM_nii.img(idx);
             efX= efX_nii.img(idx);
             efY= efY_nii.img(idx);
-            efZ= efZ_nii.img(idx);       
+            efZ= efZ_nii.img(idx);
             inArea  = ismember(allenAtlas,allenIds);
             % extract the EF magnitude and components.
             efM= efM(inArea);
             efX= efX(inArea);
             efY= efY(inArea);
             efZ= efZ(inArea);
-            
+
             % Determine summary
             S = EFMouse.summary([efX efY efZ efM]);
             brain_percentage = 100*sum(inArea)/brain_size;
             fprintf('Area: %s (%.1f%% of brain) , hemisphere %s \n',area,brain_percentage,pv.hemisphere)
             disp(S)
-            
+
             % Determine focality
             % make a 3D mask for area of interest
             x = allenAtlas_nii.img;
             area_mask = zeros(size(x));
-            area_mask(idx) = 1; % hemisphere mask: left, right or both            
+            area_mask(idx) = 1; % hemisphere mask: left, right or both
             z = ismember(x,allenIds); % extract area of interest voxel indices (no hemispheric difference, ie. 10 is both left and right)
             area_mask = area_mask & z; % intersect hemispheric mask and z
             efX= efX_nii.img(area_mask);
@@ -1531,9 +1751,179 @@ classdef EFMouse < handle
         end
 
 
+
+        function vertexNormals = outwardVertexNormals(o,surfaceFaceElem,pv)
+            % Compute outward unit normals for a set of elements on the
+            % surface. Returns nan for nodes that are not on the surface.
+            %   INPUT
+            %     o
+            %    surfaceFaceElem [# N] surface face triangles
+            %    pv.plot 
+            %   OUTPUT
+            %     vn    : unit normals [nrNodes 3] 
+            %   vn for nodes that are not in surfaceElem will be NaN.
+            %   Others are kept to allow easier indexing.            
+            arguments
+                o (1,1) EFMouse
+                surfaceFaceElem (3,:) double {mustBeInteger,mustBePositive}
+                pv.plot (1,1) logical = false
+            end
+
+            nrTetrahedra    = size(o.mesh.elem,2);
+            nrNodes         = size(o.mesh.node,2);
+            nrFaces       = size(surfaceFaceElem,2);
+
+            allFaces      = [   o.mesh.elem([1 2 3],:), ...
+                o.mesh.elem([1 2 4],:), ...
+                o.mesh.elem([1 3 4],:),...
+                o.mesh.elem([2 3 4],:)]';
+            tetIdx        = repmat((1:nrTetrahedra), 1,4);
+            allFaces    = sort(allFaces, 2); %#ok<UDIM>
+            surfaceFaceElem = sort(surfaceFaceElem, 1)';
+
+            [lia, loc]    = ismember(surfaceFaceElem, allFaces, 'rows');
+            if any(~lia)  || numel(unique(loc))~=sum(lia)
+                error('Mismatch between tetrahedra and boundary faces?');
+            end
+            tetPerFace = tetIdx(loc);
+
+            % Detemine the normal vector for each face
+            faceNormals = zeros(nrFaces,3);
+            for f = 1:nrFaces
+                thisFaceElem      = surfaceFaceElem(f,:);
+                thisTetElem = o.mesh.elem(:,tetPerFace(f));
+                assert(all(ismember(thisFaceElem, thisTetElem)),'Mismatch between tetrahedra and boundary faces')
+                interiorVertex  = setdiff(thisTetElem, thisFaceElem);      % interior vertex of the tetrahedron connected to this face.
+
+                %  Determine the face normal
+                v1 = o.mesh.node(:,thisFaceElem(1));
+                v2 = o.mesh.node(:,thisFaceElem(2));
+                v3 = o.mesh.node(:,thisFaceElem(3));
+                fn = cross(v2 - v1, v3 - v1);
+                cen = (v1 + v2 + v3)/3;
+                % Flip if pointing  towards the interior vertex
+                if dot(fn, o.mesh.node(:,interiorVertex) - cen) > 0  % pointing inward?
+                    fn = -fn;
+                end
+                faceNormals(f,:) = fn / norm(fn);       % unit length
+            end
+
+
+            % Determine the normal for each vertex by accumulating the normals
+            % from its attached faces. Because we loop over faces only
+            % nodes that are part of a surface face will have a count >0
+            vertexNormals = zeros(nrNodes,3);
+            count         = zeros(nrNodes,1);
+            for f = 1:nrFaces
+                thisFaceElem = surfaceFaceElem(f,:);
+                vertexNormals(thisFaceElem,:) = vertexNormals(thisFaceElem,:) + faceNormals(f,:);
+                count(thisFaceElem)           = count(thisFaceElem) + 1;
+            end
+            % Nodes that are not part of a face will have vertexNormal and
+            % count of zero, hence  a NaN vertexNormal after this
+            % normalization.
+            vertexNormals = vertexNormals./count;
+            vertexNormals = vertexNormals./vecnorm(vertexNormals,2,2);
+            % Sanity check
+            assert(all(isnan(vertexNormals(setdiff(1:nrNodes,surfaceFaceElem(:)),:)),"all"),'Some non surface elements included?')
+            assert(any(~isnan(vertexNormals(surfaceFaceElem(:),:)),"all"),'Surface elements with nan vertex normals?')
+            % Return all nodes to make indexing with an elem possible.
+
+            if pv.plot
+                %Show the porcupine
+                figure; hold on; axis equal off vis3d
+                [tf,ix] = meshHasTissue(o,"skin");
+                if tf
+                    pdeplot3D(o.mesh.node,o.mesh.elem(:,ix),'FaceColor','white','FaceAlpha',0.001);
+                    hold on
+                end
+                hold on
+                camlight headlight; material dull
+                % --- plot normals ---------------------------------------------------------
+                surfaceElem = unique(surfaceFaceElem(:));
+                quiver3(o.mesh.node(1,surfaceElem)', o.mesh.node(2,surfaceElem)',o.mesh.node(3,surfaceElem)', ...
+                    vertexNormals(surfaceElem,1), vertexNormals(surfaceElem,2), vertexNormals(surfaceElem,3), ...
+                    0, 'r');
+                title('Surface nodes and outward vertex normals');
+                view(3); grid on;
+            end
+        end
     end
 
-    
+    %% Helper functions
+    methods (Access =protected)
+        function startLog(o)
+            if o.log
+                diary(file(o,"LOG"));
+            end
+        end
+
+        function stopLog(o)
+            if o.log
+                diary('off')
+            end
+        end
+        function clearLog(o)
+            if o.log && exist(file(o,"LOG"),"file")
+                del(file(o,"LOG"))
+            end
+        end
+        function [data,nodeNr] = readGetDp(o,pv)
+            % Read .pos files that contain the output of GetDP. The first
+            % number is the number of nodes, followed by nrNodes lines
+            % representing the node number (column 1) and then the data
+            % (e.g. 1 column for voltage , 3 columns for field).
+            %
+            % type: "V" for voltage, "E" for electric field.
+            arguments
+                o (1,1) EFMouse
+                pv.type (1,1) string {mustBeMember(pv.type,["V" "E"])}
+            end
+
+            fname = file(o,pv.type);
+            fid = fopen(fname);
+            tmp = fscanf(fid,'%f');
+            fclose(fid);
+            nrNodes= tmp(1);
+            data = reshape(tmp(2:end),[],nrNodes)';
+            nodeNr = data(:,1);
+            data(:,1)=[];
+        end
+
+        
+
+        function  v = addBoundary(o,name)
+            % Add a boundary of a specific tissue to the model and return
+            % the ID assigned to the boundary.
+            % name : The name of the tissue
+            arguments
+                o (1,1) EFMouse
+                name (1,:) string
+            end
+
+            label = o.boundaryLabel.numEntries +(1:numel(name));
+            assert(numel(name)==numel(label),"The number of names should match the number of values ")
+            assert(all(isKey(o.tissueLabel,name)),'To add a boundary, first add the tissue');
+            alreadyDefined = isKey(o.boundaryLabel,name);
+            % Add to the dictionary
+            o.boundaryLabel(name(~alreadyDefined)) = label(~alreadyDefined);
+            v= boundaryToLabel(o,name);
+        end
+
+        function v = boundaryToLabel(o,name)
+            % Given a boundary name (a string) return its boundary ID (
+            % a number)
+            arguments
+                o (1,1) EFMouse
+                name (1,:) string
+            end
+            isAKey = isKey(o.boundaryLabel,name);
+            v =NaN(size(name));
+            for i= find(isAKey)
+                v(i) = o.boundaryLabel(name(i));
+            end
+        end
+    end
 
     %% Static helper functions
     methods (Static, Access=public)
@@ -1657,7 +2047,7 @@ classdef EFMouse < handle
                 ef = [ef sqrt(sum(ef.^2,2))];
             end
             components = num2cell(ef,1);
-            varNames = {'eX','eY','eZ','eMag'};            
+            varNames = {'eX','eY','eZ','eMag'};
             T = table(components{:},'VariableNames',varNames);
             summaryFun = {@mean,@median,@std,@(x) min(nonzeros(x)),@max};
             summaryName = {'mean','median','std','min','max'};
@@ -1683,7 +2073,7 @@ classdef EFMouse < handle
             end
             % compute x% max of roi as reference (as in Fernandes et al.)
             area_efMag = sqrt(sum(area_ef.^2,2));
-            max_limit = prctile(area_efMag,pv.percentile_max); 
+            max_limit = prctile(area_efMag,pv.percentile_max);
             cut_off = (pv.threshold/100) * max_limit;
             % now use the cutoff to threshold the reference_ef.
             reference_efMag = sqrt(sum(reference_ef.^2,2));
