@@ -176,11 +176,14 @@ classdef EFMouse < handle
                 o (1,1) EFMouse
                 pv.overwrite (1,1) logical= false
             end
-            o.stopLog;
-            here = fileparts(mfilename('fullpath'));
+            o.stopLog;            
+            here = fileparts(mfilename('fullpath'));            
             addpath(fullfile(here,'lib/NIfTI_20140122'));
+            if startsWith(string(o.dir),string(here),'IgnoreCase',true)
+                error('Please specify a different .dir for efmouse.  Results shoud not be saved in the repository.')
+            end
             % make the dir if it does not exist
-            if exist(o.dir,'dir')
+            if exist(o.dir,'dir') 
                 if pv.overwrite
                     delete(fullfile(o.dir,'*.*'))
                 else

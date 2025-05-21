@@ -2,7 +2,6 @@
 o = EFMouse; % Create a default empty object of the class EFMouse
 o.ID = 'retest';  % A name/tag for this simulation.
 o.log  = true;  % Create a log file.
-o.dir = 'c:/temp/efmouse'; % Results and the object (retest.mat) will be saved here.
 o.initialize(overwrite=true); 
 % Define electrodes and craniotomy on the posterior left hemishphere
 % Use surface electrodes 
