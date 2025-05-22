@@ -6,7 +6,7 @@ the mouse.
 
 For details see [Sanchez-Romero et al. (2024). bioRxiv.](https://doi.org/10.1101/2024.07.25.605227) <br /> 
 Run the Matlab notebooks [montage_4x1.mlx](https://github.com/klabhub/EFMouse/blob/main/montage_4x1.mlx) and [montage_1x1.mlx](https://github.com/klabhub/EFMouse/blob/main/montage_1x1.mlx) to reproduce results in Sanchez-Romero et al.<br />
-For convenience, you can visualize (not interact with) the notebooks directly here [montage_4x1.hmtl](https://klabhub.github.io/EFMouse/montage_4x1.html) and [montage_1x1.hmtl](https://klabhub.github.io/EFMouse/montage_1x1.html).
+For convenience, you can visualize (not interact with) the notebooks directly here [montage_4x1.html](https://klabhub.github.io/EFMouse/montage_4x1.html) and [montage_1x1.html](https://klabhub.github.io/EFMouse/montage_1x1.html).
 
 Developed by Ruben Sanchez-Romero, Sibel Akyuz and Bart Krekelberg<br /> 
 Center for Molecular and Behavioral Neuroscience (CMBN), Rutgers Newark<br/> 
