@@ -10,7 +10,6 @@ o.initialize(overwrite=true);
 
 %% add electrodes
 % for reference the center is located where the craniotomy eventually will be perfomed
-<<<<<<< Updated upstream
 o.addElectrode(tag = "Anterior",current = 0.2,type="surface",shape="circle", ...
     center= [-3.5,30,6],radius=0.6, thickness=1);
 % the return electorde goes in the lumbar, test different sizes
@@ -21,14 +20,3 @@ o.addElectrode(tag = "Anterior",current = 0.2,type="surface",shape="circle", ...
 o.addElectrode(tag = "Lumbar",current = -0.2,type="surface",shape="rectangle", ...
     center=[-1.1819,-9.655,10.129],length=24.5, width = 24.5,thickness=1)
 
-o.run(targetStage=Stage.GETDP,show=false);
-
-
-=======
-o.addElectrode(tag = "Anterior",current = 0.2,type="surface",shape="circle",center= [-3.5,30,6],radius=0.6, thickness=1);
-% the return electorde goes in the lumbar, test different sizes
-o.addElectrode(tag = "Lumbar",current = -0.2,type="surface",shape="rectangle",center=[-1.1819,-9.655,10.129],length=)
-
-
--1.1819,-9.655,10.129
->>>>>>> Stashed changes
