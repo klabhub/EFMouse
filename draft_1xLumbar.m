@@ -17,6 +17,13 @@ o.addElectrode(tag = "Anterior",current = 0.2,type="surface",shape="circle", ...
 % https://elifesciences.org/reviewed-preprints/100941v2#s2
 % 600 mm^2 seems too big, divide by two (for now)
 % check in more papers
-o.addElectrode(tag = "Lumbar",current = -0.2,type="surface",shape="rectangle", ...
-    center=[-1.1819,-9.655,10.129],length=24.5, width = 24.5,thickness=1)
+%o.addElectrode(tag = "Lumbar",current = -0.2,type="surface",shape="rectangle", ...
+%    center=[-1.1819,-9.655,10.129],length=24.5, width = 24.5,thickness=1);
+o.addElectrode(tag = "Lumbar",current = -0.2,type="surface",shape="circle", ...
+    center= [-1.1819,-9.655,10.129],radius=0.6, thickness=1);
 
+o.run(targetStage=Stage.MESH,show=true)
+ylim([-37 37])
+
+
+%%
