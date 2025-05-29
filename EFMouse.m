@@ -200,7 +200,8 @@ classdef EFMouse < handle
             o.voltage = nan(0,1);
             o.mesh.boundary = [];
             o.mesh.boundaryLabel = [];
-            o.boundaryLabel = configureDictionary("string","double"); % Start empty
+            %o.boundaryLabel = configureDictionary("string","double"); % Start empty
+            o.boundaryLabel = dictionary(string([]),[]);
             o.stage  = Stage.INIT;
         end
 
@@ -278,11 +279,11 @@ classdef EFMouse < handle
     
         function addElectrode(o,pv)
             % Add an electrode to the model
-            % A surface electrode will be assigned material type "gel" and
-            % always placed on the surface node closes to the specified
+            % A "surface" electrode will be assigned material type "gel" and
+            % always placed on the skin surface node closest to the specified
             % center coordinate.
             %
-            % An insert electrode can select one or more tissue types that
+            % An "insert" electrode can select one or more tissue types that
             % it is inserted into, and those are by default assigned
             % material type "conductor" (i.e., a needle inserted into skin)
             arguments
@@ -300,7 +301,7 @@ classdef EFMouse < handle
                 pv.material (1,:) string = ""
             end
             % By default the electrode material is "conductor" for an
-            % insert electrode and "gel" for a surface electrode
+            % insert electrode and "gel" for a surface electrode.
             if pv.material==""
                 switch (pv.type)
                     case "insert"
@@ -310,7 +311,7 @@ classdef EFMouse < handle
                 end
             end
             assert(numel(pv.tissue)==numel(pv.material),"Specify material for each tissue type");
-            o.electrode(pv.tag) =pv; % Store
+            o.electrode(pv.tag) = pv; % Store
         end
 
         function addCraniotomy(o,pv)
@@ -331,7 +332,7 @@ classdef EFMouse < handle
                 pv.material (1,:) string = ["air" "csf"];
             end
             pv.type = "insert";
-            o.craniotomy(pv.tag) =pv;
+            o.craniotomy(pv.tag) = pv;
         end
 
         function tets = findTets(o,shape,center,pv)
@@ -613,8 +614,8 @@ classdef EFMouse < handle
             tic
             clf;
             hold on
-            % Plot the skiin tissue
-            [tf,ix] = meshHasTissue(o,"skin");
+            % Plot the skin tissue
+            [tf,ix] = meshHasTissue(o,"gray");
             if tf
                 pdeplot3D(o.mesh.node,o.mesh.elem(:,ix),'FaceColor','white','FaceAlpha',0.001);
                 hold on
@@ -772,8 +773,8 @@ classdef EFMouse < handle
                 fprintf(fid,'%s = Region[%d];\n', k,o.tissueToLabel(k));
             end
             boundaryLabelOffset = o.tissueLabel.numEntries;
-            for k= o.boundaryLabel.keys'
-                fprintf(fid,'%s = Region[%d];\n', "boundary"+ k,o.boundaryLabel(k)+boundaryLabelOffset);
+            for k = o.boundaryLabel.keys'
+                fprintf(fid,'%s = Region[%d];\n', "boundary" + k,o.boundaryLabel(k)+boundaryLabelOffset);
             end
 
             fprintf(fid,'DomainC = Region[{');
@@ -930,15 +931,20 @@ classdef EFMouse < handle
                         % Find the surface nodes that are touching the electrode
                         % (ie. within some distance from the target location).
                         surfaceIx = unique(o.mesh.surface.face(:));       % indices into 'nodes'
-                        surfaceNode = o.mesh.node(:,surfaceIx);
+                        surfaceNode = o.mesh.node(:,surfaceIx);     % nodes coordinates
                         distance = vecnorm(surfaceNode - thisE.center', 2, 1);
                         [minDistance,closestSurfaceNodeIx] = min(distance);
-                        fprintf('Closest skin node is %.1f away from the electrode target position.\n',minDistance);
+                        fprintf('Closest skin node is %.1f away from the %s electrode target position.\n',minDistance,thisE.tag);
                         dXYZ = surfaceNode - surfaceNode(:,closestSurfaceNodeIx);
                         switch thisE.shape
                             case 'circle'
+                                % get surface nodes inside the defined
+                                % electrode radius
                                 hasContact = vecnorm(dXYZ, 2, 1) <= thisE.radius;
                             case 'rectangle'
+                                % get surface node inside the defined
+                                % electrode rectangle
+                                %RUB: may be a bug, adjust dimensions
                                 hasContact = all(abs(dXYZ) < [thisE.length thisE.width pv.maxDepth]',2);
                             otherwise
                                 error('NIY')
@@ -946,50 +952,59 @@ classdef EFMouse < handle
                         if ~any(hasContact)
                             error('No surface nodes with %.1f from the target position. Try increasing the electrode size?\n',thisE.radius);
                         end
-                        % Initial definition is an element that has contact
-                        contactElem = surfaceIx(hasContact);
-                        % Include a face if at least one element has
-                        % contact (this can change the contact elements)
-                        isContactFaceElem = ismember(o.mesh.surface.face(1,closestSurfaceNodeIx),contactElem) | ismember(o.mesh.surface.face(2,:),contactElem) | ismember(o.mesh.surface.face(3,:),contactElem);
-                        contactFaceElem = o.mesh.surface.face(:,isContactFaceElem);
-                        contactElem  = unique(contactFaceElem); % Potentially add some new elems
-                        nrContactElem = numel(contactElem);
-                        contactNode = o.mesh.node(:,contactElem);
-                        vertexNormal = outwardVertexNormals(o,contactFaceElem);
-                        vertexNormal = vertexNormal(contactElem,:);
+                        %RUB: rename the variables to remove reference to
+                        %elements, which properly are the tetrahedra
+                        % Initial definition is a node that has contact
+                        contactSurfaceNodeIx = surfaceIx(hasContact);
+                        % Include a face if at least one of the face's three nodes has
+                        % contact (this can change the contact nodes)
+                        isContactFaceNodeIx = ismember(o.mesh.surface.face(1,:),contactSurfaceNodeIx) | ismember(o.mesh.surface.face(2,:),contactSurfaceNodeIx) | ismember(o.mesh.surface.face(3,:),contactSurfaceNodeIx);
+                        contactFaceNodeIx = o.mesh.surface.face(:,isContactFaceNodeIx);
+                        contactSurfaceNodeIx  = unique(contactFaceNodeIx); % Potentially add some new nodes
+                        nrContactNodeIx = numel(contactSurfaceNodeIx);
+                        contactNode = o.mesh.node(:,contactSurfaceNodeIx);
+                        vertexNormal = outwardVertexNormals(o,contactFaceNodeIx);
+                        vertexNormal = vertexNormal(contactSurfaceNodeIx,:);
 
 
                         %Extrude each contact node along its own normal
-                        topNodes = contactNode + thisE.thickness * vertexNormal';
-                        electrodeNode = [contactNode topNodes];
+                        %RUB: seem that some of this topNodes go downwards,
+                        %plot with scatter3
+                        topNode = contactNode + thisE.thickness * vertexNormal';
+                        electrodeNode = [contactNode topNode];
                         % Triangulate
                         TR = delaunayTriangulation(electrodeNode');
                         % This TR should maintain the ordering of the elements
-                        % This is key for the relabeling in the mouse mesh,
+                        % This is key for the relabeling in the mouse mesh
+                        % (see below).
                         % so let's make sure
+                        %TR.Points are the TR node coordinates
                         [tf,loc] = ismember(contactNode',TR.Points,'rows');
-                        assert(all(tf)&& all(diff(loc)==1),'Triangulation error!!');
+                        assert(all(tf) && all(diff(loc)==1),'Triangulation error!!');
 
                         %% Identify the faces that form the top of the gel
+                        %RUB: rename topElem
                         electrodeFace = freeBoundary(TR);
-                        topElem = nrContactElem + (1:nrContactElem); % These will be the elem numbers of the top surface
-                        topFace  = sum(ismember(electrodeFace,topElem),2)==3;
+                        topNodeIx = nrContactNodeIx + (1:nrContactNodeIx); % These will be the node idx of the top surface
+                        topFace  = sum(ismember(electrodeFace,topNodeIx),2)==3;
                         electrodeFace = electrodeFace(topFace,:);
 
 
                         %% Combine with mouse mesh
                         offset = size(o.mesh.node,2);
                         % Add the top nodes
-                        o.mesh.node = [o.mesh.node  topNodes];
+                        o.mesh.node = [o.mesh.node  topNode];
                         % Relabel the elem to match the elems of the entire
                         % mesh
-                        electrodeElem = TR.ConnectivityList + offset -nrContactElem;
-                        tmpElectrodeFace = electrodeFace + offset - nrContactElem;
+                        % TR.ConnectivityList contains the Elements
+                        % (tetrahedra, formed by 4 nodes)
+                        electrodeElem = TR.ConnectivityList + offset -nrContactNodeIx;
+                        tmpElectrodeFace = electrodeFace + offset - nrContactNodeIx;
                         % Correct the contact elems (which were already in
                         % the mesh)
-                        for ce=1:nrContactElem
-                            electrodeElem(TR.ConnectivityList == ce) = contactElem(ce);
-                            tmpElectrodeFace(electrodeFace==ce) = contactElem(ce);
+                        for ce = 1:nrContactNodeIx
+                            electrodeElem(TR.ConnectivityList == ce) = contactSurfaceNodeIx(ce);
+                            tmpElectrodeFace(electrodeFace==ce) = contactSurfaceNodeIx(ce);
                         end
                         electrodeFace = tmpElectrodeFace;
                         o.mesh.elem = [o.mesh.elem electrodeElem'];
@@ -1004,6 +1019,7 @@ classdef EFMouse < handle
                 end
 
                 %% Add electrode boundaries
+                %RUB: why you need this?
                 thisBoundaryLabel = o.addBoundary(thisE.tag);
                 o.mesh.boundary = [o.mesh.boundary electrodeFace'];
                 o.mesh.boundaryLabel = [o.mesh.boundaryLabel repmat(thisBoundaryLabel,[1  size(electrodeFace,1)])];
@@ -1216,7 +1232,7 @@ classdef EFMouse < handle
 
             %% Determine which tets are candidates for the thing.
             nrTetrahedra    = size(o.mesh.elem,2);
-            % Select on tissue type (if specified)
+            % Select tissue type (if specified)
             if ~isfield(thing,'tissue')
                 % Any tissue
                 candidateTet = 1:nrTetrahedra;
@@ -1227,6 +1243,7 @@ classdef EFMouse < handle
                 end
             end
             % Select on surface or any
+            %RUB: what is an insert in a surface?
             if strcmpi(thing.type,'surface')
                 candidateTet =intersect(candidateTet,o.mesh.surface.tet);
                 surfaceString = " surface";
@@ -1238,7 +1255,7 @@ classdef EFMouse < handle
             distance = vecnorm(o.mesh.centroid(:,candidateTet)'- thing.center, 2, 2);
             [minDistance,ix] = min(distance);
             targetTet = candidateTet(ix);
-
+            %RUB: what is this showing?
             fprintf('Found %s tet #%d at a distance of %.2f from the target (label : %s)\n',surfaceString,targetTet,minDistance,labelToTissue(o,o.mesh.label(targetTet)))
 
             %% Reduce the search space from the entire mesh
@@ -1256,6 +1273,7 @@ classdef EFMouse < handle
 
             % Step 2: Build face-to-element map
             faceMap = containers.Map('KeyType','char','ValueType','any');
+
             for i = 1:nrCandidateTet
                 tet = o.mesh.elem(:, candidateTet(i));
                 faces = [
@@ -1300,7 +1318,7 @@ classdef EFMouse < handle
                         dXYZ = o.mesh.centroid(:,currentGlobalTet)'- thing.center;
                         switch thing.shape
                             case 'circle'
-                                ok = vecnorm(dXYZ, 2, 2)< thing.radius;
+                                ok = vecnorm(dXYZ, 2, 2) < thing.radius;
                             case 'rectangle'
                                 ok  = all(abs(dXYZ) < 0.5*[thing.length,thing.width,pv.maxDepth]);
                         end
@@ -1755,36 +1773,36 @@ classdef EFMouse < handle
 
 
 
-        function vertexNormals = outwardVertexNormals(o,surfaceFaceElem,pv)
-            % Compute outward unit normals for a set of elements on the
+        function vertexNormals = outwardVertexNormals(o,surfaceFaceNodeIx,pv)
+            % Compute outward unit normals for a set of nodes on the
             % surface. Returns nan for nodes that are not on the surface.
             %   INPUT
             %     o
-            %    surfaceFaceElem [# N] surface face triangles
+            %    surfaceFaceNodeIx [# N] surface face triangles (defined by 3 nodes)
             %    pv.plot 
             %   OUTPUT
             %     vn    : unit normals [nrNodes 3] 
-            %   vn for nodes that are not in surfaceElem will be NaN.
+            %   vn for nodes that are not in surfaceFaceNodeIx will be NaN.
             %   Others are kept to allow easier indexing.            
             arguments
                 o (1,1) EFMouse
-                surfaceFaceElem (3,:) double {mustBeInteger,mustBePositive}
+                surfaceFaceNodeIx (3,:) double {mustBeInteger,mustBePositive}
                 pv.plot (1,1) logical = false
             end
 
             nrTetrahedra    = size(o.mesh.elem,2);
             nrNodes         = size(o.mesh.node,2);
-            nrFaces       = size(surfaceFaceElem,2);
+            nrFaces       = size(surfaceFaceNodeIx,2);
 
-            allFaces      = [   o.mesh.elem([1 2 3],:), ...
+            allFaces      = [o.mesh.elem([1 2 3],:), ...
                 o.mesh.elem([1 2 4],:), ...
                 o.mesh.elem([1 3 4],:),...
                 o.mesh.elem([2 3 4],:)]';
             tetIdx        = repmat((1:nrTetrahedra), 1,4);
             allFaces    = sort(allFaces, 2); %#ok<UDIM>
-            surfaceFaceElem = sort(surfaceFaceElem, 1)';
+            surfaceFaceNodeIx = sort(surfaceFaceNodeIx, 1)';
 
-            [lia, loc]    = ismember(surfaceFaceElem, allFaces, 'rows');
+            [lia, loc]    = ismember(surfaceFaceNodeIx, allFaces, 'rows');
             if any(~lia)  || numel(unique(loc))~=sum(lia)
                 error('Mismatch between tetrahedra and boundary faces?');
             end
@@ -1793,10 +1811,10 @@ classdef EFMouse < handle
             % Detemine the normal vector for each face
             faceNormals = zeros(nrFaces,3);
             for f = 1:nrFaces
-                thisFaceElem      = surfaceFaceElem(f,:);
+                thisFaceElem = surfaceFaceNodeIx(f,:);
                 thisTetElem = o.mesh.elem(:,tetPerFace(f));
                 assert(all(ismember(thisFaceElem, thisTetElem)),'Mismatch between tetrahedra and boundary faces')
-                interiorVertex  = setdiff(thisTetElem, thisFaceElem);      % interior vertex of the tetrahedron connected to this face.
+                interiorVertex  = setdiff(thisTetElem, thisFaceElem);      % interior vertex/node of the tetrahedron connected to this face.
 
                 %  Determine the face normal
                 v1 = o.mesh.node(:,thisFaceElem(1));
@@ -1812,13 +1830,13 @@ classdef EFMouse < handle
             end
 
 
-            % Determine the normal for each vertex by accumulating the normals
+            % Determine the normal for each vertex/node by accumulating the normals
             % from its attached faces. Because we loop over faces only
             % nodes that are part of a surface face will have a count >0
             vertexNormals = zeros(nrNodes,3);
             count         = zeros(nrNodes,1);
             for f = 1:nrFaces
-                thisFaceElem = surfaceFaceElem(f,:);
+                thisFaceElem = surfaceFaceNodeIx(f,:);
                 vertexNormals(thisFaceElem,:) = vertexNormals(thisFaceElem,:) + faceNormals(f,:);
                 count(thisFaceElem)           = count(thisFaceElem) + 1;
             end
@@ -1828,8 +1846,8 @@ classdef EFMouse < handle
             vertexNormals = vertexNormals./count;
             vertexNormals = vertexNormals./vecnorm(vertexNormals,2,2);
             % Sanity check
-            assert(all(isnan(vertexNormals(setdiff(1:nrNodes,surfaceFaceElem(:)),:)),"all"),'Some non surface elements included?')
-            assert(any(~isnan(vertexNormals(surfaceFaceElem(:),:)),"all"),'Surface elements with nan vertex normals?')
+            assert(all(isnan(vertexNormals(setdiff(1:nrNodes,surfaceFaceNodeIx(:)),:)),"all"),'Some non surface elements included?')
+            assert(any(~isnan(vertexNormals(surfaceFaceNodeIx(:),:)),"all"),'Surface elements with nan vertex normals?')
             % Return all nodes to make indexing with an elem possible.
 
             if pv.plot
@@ -1843,7 +1861,7 @@ classdef EFMouse < handle
                 hold on
                 camlight headlight; material dull
                 % --- plot normals ---------------------------------------------------------
-                surfaceElem = unique(surfaceFaceElem(:));
+                surfaceElem = unique(surfaceFaceNodeIx(:));
                 quiver3(o.mesh.node(1,surfaceElem)', o.mesh.node(2,surfaceElem)',o.mesh.node(3,surfaceElem)', ...
                     vertexNormals(surfaceElem,1), vertexNormals(surfaceElem,2), vertexNormals(surfaceElem,3), ...
                     0, 'r');

@@ -1,15 +1,18 @@
 %% Compact example. 
 o = EFMouse; % Create a default empty object of the class EFMouse
 o.ID = 'retest';  % A name/tag for this simulation.
+o.dir = '/Users/rubensanchez/desktop/EFMouse/1x1Montage_retest';
 o.log  = true;  % Create a log file.
 o.initialize(overwrite=true); 
 % Define electrodes and craniotomy on the posterior left hemishphere
 % Use surface electrodes 
-o.addElectrode(tag = "Anterior",current = -1,center= [-3  29 5],radius=0.7, thickness=1,type="surface",shape="circle");
-o.addElectrode(tag = "Posterior",current = 1,center= [-3  25 5],radius=0.7, thickness=1, type="surface",shape="circle");
-o.addCraniotomy(tag = "left",center=[-3 27 5],radius=1);
+o.addElectrode(tag = "Anterior",current = 0.2,type="surface",shape="circle",center= [-3.5,30,6],radius=0.6, thickness=1);
+o.addElectrode(tag = "Posterior",current = -0.2,type="surface",shape="circle",center= [-3.5,24,6],radius=0.6, thickness=1);
+o.addCraniotomy(tag = "left",center=[-3.5,27,6],radius=1.5,material=["csf","csf"]);
 % Run meshing and simulation 
-o.run(targetStage=Stage.GETDP,show=false);
+
+
+%o.run(targetStage=Stage.GETDP,show=false);
 
 %% Plot results
 
