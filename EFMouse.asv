@@ -616,7 +616,7 @@ classdef EFMouse < handle
             clf;
             hold on
             % Plot the skin tissue
-            [tf,ix] = meshHasTissue(o,pv.tissue);
+            [tf,ix] = meshHasTissue(o,"skin");
             if tf
                 pdeplot3D(o.mesh.node,o.mesh.elem(:,ix),'FaceColor','white','FaceAlpha',0.001);
                 hold on
