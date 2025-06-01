@@ -471,8 +471,8 @@ classdef EFMouse < handle
 
 
             %%
-            % Properly, we should only consider in the colormap the values
-            % of the tissue we are plotting.
+            % We should only consider values
+            % of the tissue we are plotting for the colormap.
             % This avoid bias in the visualization from other tissue values
             % Get the mesh node indices for the corresponding tissue.
             tiss_node_idx = unique(o.mesh.elem(:,ismember(o.mesh.label,tissueId)));
