@@ -573,11 +573,20 @@ classdef EFMouse < handle
                     case "y"
                          view([0 0])
                     case "z"
-                        view([0 90])
-                end
-            else
-                view([0,90])
-            end
+
+
+if strcmp(ax,"y")
+   
+elseif strcmp(ax,"x")
+    
+else
+    view([0 90])
+end
+
+
+
+
+            view([0,90])
             % fix the position of the figure
             set(gcf,'Position',[440 348 582 449])
             % set the limits for X,Y and Z axis to zoom in on the brain.
