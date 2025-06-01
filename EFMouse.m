@@ -454,8 +454,11 @@ classdef EFMouse < handle
                 pv.tissue (1,1) string {mustBeMember(pv.tissue,["gray" "csf" "bone"  "skin"   "eye"])} = "gray"
                 pv.orientationQuiver (1,1) logical = true
                 pv.type (1,1) string {mustBeMember(pv.type,["V" "eMag" "eX" "eY" "eZ"])} = "eMag"
-                pv.slice_ax (1,1) string {mustBeMember(pv.slice_ax,["x","y","z"])} = []
-                pv.slice_pos (1,1) double =[]
+                % TODO: how to avoid the condition by allowing values or
+                % empties
+                pv.slice (1,1) logical = false
+                pv.slice_ax (1,1) string {mustBeMember(pv.slice_ax,["x","y","z"])} = "y"
+                pv.slice_pos (1,1) double = 27
             end
 
             tic
@@ -471,8 +474,6 @@ classdef EFMouse < handle
             % we will not be able to visualize the pattern.
             % 98 seems a good trade-off, but you should modify as necessary
 
-
-            %%
             % We should only consider values
             % of the tissue we are plotting for the colormap.
             % This avoid bias in the visualization from other tissue values
@@ -514,7 +515,7 @@ classdef EFMouse < handle
             %% Generate the figure
             figure;
 
-            if ~isempty(pv.slice_pos)
+            if pv.slice
                 % TODO: error if the slice selected is outside the mesh bounds
                 map_slice_dir = dictionary(["x","y","z"],[1,2,3]);
                 row = map_slice_dir(pv.slice_ax);
@@ -566,7 +567,7 @@ classdef EFMouse < handle
             % once plotted, it can be rotated manually with the figure
             % Tools->Rotate 3D option
             % depends if we are visualizing a slice
-            if ~isempty(pv.slice_ax)
+            if pv.slice
                 switch(pv.slice_ax)
                     case "x"
                         view([90 0])
