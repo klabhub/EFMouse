@@ -973,8 +973,7 @@ classdef EFMouse < handle
                             case 'rectangle'
                                 % get surface node inside the defined
                                 % electrode rectangle
-                                %RUB: may be a bug, adjust dimensions
-                                hasContact = all(abs(dXYZ) < [thisE.length thisE.width pv.maxDepth]',2);
+                                hasContact = all(abs(dXYZ) < [thisE.length thisE.width pv.maxDepth]',1);
                             otherwise
                                 error('NIY')
                         end
@@ -997,8 +996,6 @@ classdef EFMouse < handle
 
 
                         %Extrude each contact node along its own normal
-                        %RUBEN: seem that some of this topNodes go downwards,
-                        %plot with scatter3
                         topNode = contactNode + thisE.thickness * vertexNormal';
                         electrodeNode = [contactNode topNode];
                         % Triangulate
