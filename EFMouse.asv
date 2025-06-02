@@ -997,7 +997,7 @@ classdef EFMouse < handle
 
 
                         %Extrude each contact node along its own normal
-                        %RUB: seem that some of this topNodes go downwards,
+                        %RUBEN: seem that some of this topNodes go downwards,
                         %plot with scatter3
                         topNode = contactNode + thisE.thickness * vertexNormal';
                         electrodeNode = [contactNode topNode];
@@ -1012,7 +1012,6 @@ classdef EFMouse < handle
                         assert(all(tf) && all(diff(loc)==1),'Triangulation error!!');
 
                         %% Identify the faces that form the top of the gel
-                        %RUB: rename topElem
                         electrodeFace = freeBoundary(TR);
                         topNodeIx = nrContactNodeIx + (1:nrContactNodeIx); % These will be the node idx of the top surface
                         topFace  = sum(ismember(electrodeFace,topNodeIx),2)==3;
@@ -1048,7 +1047,6 @@ classdef EFMouse < handle
                 end
 
                 %% Add electrode boundaries
-                %RUB: why you need this?
                 thisBoundaryLabel = o.addBoundary(thisE.tag);
                 o.mesh.boundary = [o.mesh.boundary electrodeFace'];
                 o.mesh.boundaryLabel = [o.mesh.boundaryLabel repmat(thisBoundaryLabel,[1  size(electrodeFace,1)])];
