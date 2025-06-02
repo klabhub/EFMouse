@@ -973,8 +973,7 @@ classdef EFMouse < handle
                             case 'rectangle'
                                 % get surface node inside the defined
                                 % electrode rectangle
-                                %RUB: may be a bug, adjust dimensions
-                                hasContact = all(abs(dXYZ) < [thisE.length thisE.width pv.maxDepth]',2);
+                                hasContact = all(abs(dXYZ) < [thisE.length thisE.width pv.maxDepth]',1);
                             otherwise
                                 error('NIY')
                         end
