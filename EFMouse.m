@@ -560,14 +560,22 @@ classdef EFMouse < handle
 
             %% Set other parameters of the 3D plot.
             % define title using the montage ID and the tissue
-            plot_title = {o.ID + " -- " + pv.tissue,...
-                pv.type " < " +  string(num2str(pv.percentile)) + "th percentile"};
+            if ~pv.slice
+                plot_title = {o.ID + " -- " + pv.tissue,...
+                    pv.type " < " +  string(num2str(pv.percentile)) + "th percentile"};
+            else
+                plot_title = {o.ID + " -- " + pv.tissue,...
+                    " slice: " + pv.slice_ax + " " + string(num2str(pv.slice_pos)),...
+                    pv.type " < " +  string(num2str(pv.percentile)) + "th percentile"};
+            end                
             title(plot_title,FontSize=17,interpreter='none');
             % rotate for a transverse view (X(left-right)-Y(top-bottom)axes)
             % once plotted, it can be rotated manually with the figure
             % Tools->Rotate 3D option
             % depends if we are visualizing a slice
-            if pv.slice
+            if ~pv.slice
+                view([0,90])
+            else
                 switch(pv.slice_ax)
                     case "x"
                         view([90 0])
@@ -575,12 +583,14 @@ classdef EFMouse < handle
                          view([0 0])
                     case "z"
                         view([0 90])
-                end
-            else
-                view([0,90])
+                end                
             end
             % fix the position of the figure
-            set(gcf,'Position',[440 348 582 449])
+            if ~pv.slice
+                set(gcf,'Position',[440 348 582 449])
+            else
+                set(gcf,'Position',[628 221 465 435])
+            end
             % set the limits for X,Y and Z axis to zoom in on the brain.
             % And also in case the brain is manually rotated (Tools->Rotated 3D)
             % this forces the brain to stay inside this limits

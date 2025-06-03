@@ -560,6 +560,10 @@ classdef EFMouse < handle
 
             %% Set other parameters of the 3D plot.
             % define title using the montage ID and the tissue
+            if pv.slice
+                plot_title = {o.ID + " -- " + pv.tissue,...
+                    " slice " + pv.slice_ax + string(num2str(pv.slice_pos)),...
+                    pv.type " < " +  string(num2str(pv.percentile)) + "th percentile"};
             plot_title = {o.ID + " -- " + pv.tissue,...
                 pv.type " < " +  string(num2str(pv.percentile)) + "th percentile"};
             title(plot_title,FontSize=17,interpreter='none');
