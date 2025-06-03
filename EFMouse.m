@@ -1466,7 +1466,7 @@ classdef EFMouse < handle
             end
         end
 
-        function analyzeTissue(o,tissueType)
+        function [S,H] = analyzeTissue(o,tissueType)
             % ANALYZETISSUE reports electric field (EF) x,y,z components and
             % magnitude summary statistics (mean, median, std.dev, min, max)
             % for all tissues in the Digimouse.
