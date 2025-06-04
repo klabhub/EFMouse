@@ -660,44 +660,44 @@ classdef EFMouse < handle
                 hold on
             end
 
-            % % plot the craniotomies(if any) with cy colors
-            % colors=  'cm';
-            % for c = o.craniotomy.keys'
-            %     thisC = o.craniotomy(c);
-            %     tCntr = 0;
-            %     for t = thisC.tissue
-            %         tCntr = tCntr+1;
-            %         thisColor = colors(mod(tCntr-1,numel(colors))+1);
-            %         [tf,ix] = meshHasTissue(o,thisC.tag +t);
-            %         if tf
-            %             pdeplot3D(o.mesh.node,o.mesh.elem(:,ix),'FaceColor',thisColor,'EdgeColor',thisColor);
-            %             hold on
-            %         end
-            %     end
-            % end
-            % 
-            % 
-            % % plot the electrodes (+ current: red) and (- current: blue)
-            % for e = o.electrode.keys'
-            %     thisE = o.electrode(e);
-            %     [tf,ix] = meshHasTissue(o,thisE.tag);
-            %     if tf
-            %         current = thisE.current;
-            %         if current >= 0 % positive current
-            %             thisColor ='red';
-            %         elseif current < 0 % negative current
-            %             thisColor ='blue';
-            %         end
-            %         pdeplot3D(o.mesh.node,o.mesh.elem(:,ix),'FaceColor',thisColor,'EdgeColor',thisColor);
-            %         hold on;
-            %     end
-            % end
-            % 
-            % % plot the roi, when analyzing roi-level electric field
-            % if ~isempty(pv.roi)
-            %     pdeplot3D(o.mesh.node,o.mesh.elem(:,pv.roi),'FaceColor','y','EdgeColor','y');
-            %     hold on;
-            % end
+            % plot the craniotomies(if any) with cy colors
+            colors=  'cm';
+            for c = o.craniotomy.keys'
+                thisC = o.craniotomy(c);
+                tCntr = 0;
+                for t = thisC.tissue
+                    tCntr = tCntr+1;
+                    thisColor = colors(mod(tCntr-1,numel(colors))+1);
+                    [tf,ix] = meshHasTissue(o,thisC.tag +t);
+                    if tf
+                        pdeplot3D(o.mesh.node,o.mesh.elem(:,ix),'FaceColor',thisColor,'EdgeColor',thisColor);
+                        hold on
+                    end
+                end
+            end
+
+
+            % plot the electrodes (+ current: red) and (- current: blue)
+            for e = o.electrode.keys'
+                thisE = o.electrode(e);
+                [tf,ix] = meshHasTissue(o,thisE.tag);
+                if tf
+                    current = thisE.current;
+                    if current >= 0 % positive current
+                        thisColor ='red';
+                    elseif current < 0 % negative current
+                        thisColor ='blue';
+                    end
+                    pdeplot3D(o.mesh.node,o.mesh.elem(:,ix),'FaceColor',thisColor,'EdgeColor',thisColor);
+                    hold on;
+                end
+            end
+
+            % plot the roi, when analyzing roi-level electric field
+            if ~isempty(pv.roi)
+                pdeplot3D(o.mesh.node,o.mesh.elem(:,pv.roi),'FaceColor','y','EdgeColor','y');
+                hold on;
+            end
 
             %% Parameters of the plot
             % rotate for a transverse view (X(left-right)-Y(anterior-posterior)axes)
