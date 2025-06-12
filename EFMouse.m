@@ -1448,7 +1448,7 @@ classdef EFMouse < handle
                         otherwise
                             error('Unsupported operating system!');
                     end
-                    v = fullfile(installDir,"lib","getdp-3.2.0","bin", exe);
+                    v = fullfile(installDir,"lib","getdp-3.5.0","bin", exe);
                 case "EMAGNII"
                     v = fullfile(o.dir,o.ID + "_efm.nii.gz");
                 case "EXNII"
