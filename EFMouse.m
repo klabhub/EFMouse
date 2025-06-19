@@ -685,11 +685,14 @@ classdef EFMouse < handle
                     current = thisE.current;
                     if current >= 0 % positive current
                         thisColor ='red';
+                        pdeplot3D(o.mesh.node,o.mesh.elem(:,ix),'FaceColor',thisColor,'EdgeColor',thisColor);
+                        hold on;
                     elseif current < 0 % negative current
                         thisColor ='blue';
+                        pdeplot3D(o.mesh.node,o.mesh.elem(:,ix),'FaceColor',thisColor,'EdgeColor',thisColor);
+                        hold on;
                     end
-                    pdeplot3D(o.mesh.node,o.mesh.elem(:,ix),'FaceColor',thisColor,'EdgeColor',thisColor);
-                    hold on;
+                    
                 end
             end
 
