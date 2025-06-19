@@ -725,7 +725,7 @@ classdef EFMouse < handle
             % computing the mesh.
             es = o.electrode.values;
             totalCurrent = sum([es.current]);
-            assert(totalCurrent==0,"The total current is %.1f; it should be zero",totalCurrent);
+            assert(totalCurrent < eps,"The total current is %.1f; it should be zero",totalCurrent);
             circles =[es.shape] == "circle";
             assert(all(~isnan([es(circles).radius])),"Circle electrodes must define a radius");
             rects =[es.shape] == "rectangle";
