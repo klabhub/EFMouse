@@ -1534,6 +1534,7 @@ classdef EFMouse < handle
                 pv.plot (1,1) logical = true
                 pv.foc_threshold = 75;
                 pv.foc_percentile_max = 99.9;
+                pv.median = false;
             end
 
             tic
@@ -1566,7 +1567,7 @@ classdef EFMouse < handle
             % get the elements in gray that are not in roi (complement)
             complement_node_idx = setdiff(gray_node_idx,roi_node_idx);
             complement_ef= ef(complement_node_idx,:);
-            F = EFMouse.focality(roi_ef,complement_ef,threshold = pv.foc_threshold, percentile_max = pv.foc_percentile_max);
+            F = EFMouse.focality(roi_ef,complement_ef,threshold = pv.foc_threshold, percentile_max = pv.foc_percentile_max, median = pv.median);
             fprintf('[Relative focality ranges from 0 to 1]\n');
             fprintf('Relative focality = %.4f, with %d reference nodes (cutoff: eMag > %.2f%% of the target area max (%.2fth percentile))\n',F(1),F(2),pv.foc_threshold,pv.foc_percentile_max);
             % Compute homogeneity
@@ -1912,7 +1913,7 @@ classdef EFMouse < handle
     end
 
     %% Helper functions
-    methods (Access =protected)
+    methods (Access = protected)
         function startLog(o)
             if o.log
                 diary(file(o,"LOG"));
@@ -1988,8 +1989,6 @@ classdef EFMouse < handle
 
     %% Static helper functions
     methods (Static, Access=public)
-
-
 
         function nii = niftiCreator(input_3Dmatrix)
             % function to create nifti files specialized for our stimulation montage
@@ -2123,7 +2122,6 @@ classdef EFMouse < handle
             % A = number of elements in reference > x% of max of roi
             % B = total number of elements in complement
             % Focality = A/B
-            % Lower number implies greater focality
             % Adapted from Fernandes et al. https://dx.doi.org/10.1088/1361-6560/ad222d
             % the defaults are from Fernandes et al.
             arguments
@@ -2131,11 +2129,16 @@ classdef EFMouse < handle
                 reference_ef (:,:) double
                 pv.threshold = 75 % 75% of the max
                 pv.percentile_max = 99.9 % max defined as the 99.9 percentile
+                pv.median = false
             end
             % compute x% max of roi as reference (as in Fernandes et al.)
             area_efMag = sqrt(sum(area_ef.^2,2));
-            max_limit = prctile(area_efMag,pv.percentile_max);
-            cut_off = (pv.threshold/100) * max_limit;
+            if pv.median == true
+                cut_off = median(area_efMag,"omitmissing");
+            else
+                max_limit = prctile(area_efMag,pv.percentile_max);
+                cut_off = (pv.threshold/100) * max_limit;
+            end
             % now use the cutoff to threshold the reference_ef.
             reference_efMag = sqrt(sum(reference_ef.^2,2));
             num_nodes_p = sum(reference_efMag > cut_off);
