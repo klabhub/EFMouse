@@ -16,7 +16,7 @@ For support, please open an [issue](https://github.com/klabhub/EFMouse/issues)
 If you use EFMouse in your research, please cite: Sanchez-Romero R., Akyuz, S., & Krekelberg, B. (2025). EFMouse: a toolbox to model electric fields in the mouse brain. bioRxiv. https[]()://doi.org/10.1101/2024.07.25.605227 
 
 ## Installation and dependencies
-Requires MATLAB_2023a or later versions, and the Partial Differential Equation Toolbox. 
+Requires MATLAB/2023a or later versions, and the Partial Differential Equation Toolbox. 
 
 Clone the repository from github `git clone https://github.com/klabhub/EFMouse.git`
 
