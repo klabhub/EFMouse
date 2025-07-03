@@ -6,7 +6,7 @@ the mouse.
 
 For details see [Sanchez-Romero et al. (2025). bioRxiv.](https://doi.org/10.1101/2024.07.25.605227) <br /> 
 Run the different Matlab tutorials `montage_*.mlx` to reproduce results in Sanchez-Romero et al.<br />
-You can visualize (not interact with) the tutorials directly here [montage_1xBack.hmtl](https://klabhub.github.io/EFMouse/montage_1xBack.html), [montage_1x4.hmtl](https://klabhub.github.io/EFMouse/montage_1x4.html), [montage_4xBack_craniotomy.html](https://klabhub.github.io/EFMouse/montage_4xBack_craniotomy.html), [montage_1x1_craniotomy.hmtl](https://klabhub.github.io/EFMouse/montage_1x1_craniotomy.html) and [montage_1x1_craniotomy_skinBone-csf.hmtl](https://klabhub.github.io/EFMouse/montage_1x1_craniotomy_skinBone-csf.hmtl) 
+You can visualize (not interact with) the tutorials directly here [montage_1xBack.html](https://klabhub.github.io/EFMouse/montage_1xBack.html), [montage_1x4.hmtl](https://klabhub.github.io/EFMouse/montage_1x4.html), [montage_4xBack_craniotomy.html](https://klabhub.github.io/EFMouse/montage_4xBack_craniotomy.html), [montage_1x1_craniotomy.hmtl](https://klabhub.github.io/EFMouse/montage_1x1_craniotomy.html) and [montage_1x1_craniotomy_skinBone-csf.html](https://klabhub.github.io/EFMouse/montage_1x1_craniotomy_skinBone-csf.html) 
 
 Developed by Ruben Sanchez-Romero and Bart Krekelberg<br /> 
 Center for Molecular and Behavioral Neuroscience (CMBN) Rutgers Newark<br/> 
