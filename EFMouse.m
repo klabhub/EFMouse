@@ -17,7 +17,7 @@ classdef EFMouse < handle
     %
     % Use the Editor tab/Go To button to navigate the class functions.
     %
-    % Ruben Sanchez-Romero and Bart Krekelberg
+    % Ruben Sanchez-Romero, Bart Krekelberg and Sibel Akyuz
     % Center for Molecular and Behavioral Neuroscience (CMBN)
     % Rutgers Newark
     %
