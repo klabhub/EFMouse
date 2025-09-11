@@ -14,7 +14,8 @@ Center for Molecular and Behavioral Neuroscience (CMBN) Rutgers Newark<br/>
 v2.0.0. July 2025<br/>
 For support, please open an [issue](https://github.com/klabhub/EFMouse/issues)
 
-If you use EFMouse in your research, please cite: Sanchez-Romero R, Akyuz S, Krekelberg B (2025) EFMouse: A toolbox to model stimulation-induced electric fields in the mouse brain. PLoS Comput Biol 21(9): e1013471. https://doi.org/10.1371/journal.pcbi.1013471
+If you use EFMouse in your research, please cite:<br> 
+Sanchez-Romero R, Akyuz S, Krekelberg B (2025) EFMouse: A toolbox to model stimulation-induced electric fields in the mouse brain. PLoS Comput Biol 21(9): e1013471. https://doi.org/10.1371/journal.pcbi.1013471
 
 ## Installation and dependencies
 Requires MATLAB/2023a or later versions, and the Partial Differential Equation Toolbox. 
