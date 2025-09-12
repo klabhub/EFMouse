@@ -27,4 +27,4 @@ package](https://fsl.fmrib.ox.ac.uk/fsl/docs/#/) 6.0.7 or later versions. (FSL a
 
 ## Tutorial
 To get started, open one of the `montage_*.mlx` files in Matlab and follow the compute pipeline, the analysis suggestions, 
-and for additional options, look up the help for each of the functions used in the tutorial.
+and for additional options look up the help for each of the functions used in the tutorial.
